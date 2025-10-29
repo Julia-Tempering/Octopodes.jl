@@ -1,59 +1,12 @@
 using JLD2, CairoMakie, LogExpFunctions, Pigeons, DynamicPPL, Distributions, 
     Turing, Enzyme, LogDensityProblems, LogDensityProblemsAD, ForwardDiff, 
-    LinearAlgebra, Random
-
-root_dir = @__DIR__
-
-function load_data() 
-    data_file = "$root/all-data.jld2"
-    if !isfile(data_file)
-        @info "Decompressing data" 
-        cd(root_dir) do 
-            run(`unzip all-data.jld2.zip`)
-        end
-    end
-    dict = load("all-data.jld2")
-    return dict["d"]
-end
+    LinearAlgebra, Random, BenchmarkTools
 
 
 
-n_systems(data) = size(data.q_x_i)[2]
+## Turing models 
 
-data = load_data()
-
-subset(size) =
-    (;  log_Ni = data.log_Ni[1:size], 
-        log_Zi = data.log_Zi[1:size],
-        q_i = data.q_i,
-        q_x_i = data.q_x_i[:, 1:size],
-    )
-
-function vector_to_matrix(vector::AbstractVector)
-    n_mass_bins = 5 
-    n_period_bins = 6 
-    @assert length(vector) == n_mass_bins * n_period_bins 
-    return reshape(vector, (n_period_bins, n_mass_bins))
-end
-
-specific_model(i) = plot_hist(vec(data.q_x_i[:, i]))
-
-function indep_models()
-    averaged = sum(data.q_x_i; dims = 2) / n_systems(data)
-    plot_hist(vec(averaged))
-end
-
-function plot_hist(m)
-    @assert isa(m, AbstractVector) || (size(m, 1) == 1) || (size(m, 2) == 1)
-    matrix = vector_to_matrix(vec(m)) 
-    @show size(matrix)
-    fig, ax, hm = heatmap(matrix)
-    ax.xlabel = "Period bin"
-    ax.ylabel = "Mass ratio bin"
-    Colorbar(fig[1, 2], hm)
-    fig
-end
-
+# From William's slack channel message Monday, Oct 27, 12:14 PM
 @model function pop_hierarch_reference(q_x_i, q_i, log_Zi, log_Ni)
 
     K = size(q_x_i, 1)
@@ -88,6 +41,7 @@ end
     end
 end
 
+# Equivalent but faster version:
 @model function pop_hierarch(preprocessed)
 
     # Population parameters
@@ -104,28 +58,6 @@ end
     if DynamicPPL.leafcontext(__context__) !== DynamicPPL.PriorContext()
         DynamicPPL.@addlogprob! sum(log.(vector * preprocessed.coefficients))
     end
-
-end
-
-function check_pop_hierarch() 
-    #data = subset(100) 
-    ldp1 = ldp_with_grad(pop_hierarch_reference(data.q_x_i, data.q_i, data.log_Zi, data.log_Ni)) 
-    
-    preprocessed = preprocess(data)
-    ldp2 = ldp_with_grad(pop_hierarch(preprocessed))  
-
-    dim = LogDensityProblems.dimension(ldp1)
-    point = randn(MersenneTwister(1), dim) 
-    @show LogDensityProblems.logdensity_and_gradient(ldp1, point)[2] 
-    @show LogDensityProblems.logdensity_and_gradient(ldp2, point)[2]
-    @show LogDensityProblems.logdensity(ldp1, point) - LogDensityProblems.logdensity(ldp2, point)
-    @show preprocessed.log_normalization_offset
-end
-
-function ldp_with_grad(model)
-    ldp = DynamicPPL.LogDensityFunction(model)
-    DynamicPPL.link!!(ldp.varinfo, model)
-    return LogDensityProblemsAD.ADgradient(Val(:ForwardDiff), ldp)
 end
 
 function preprocess(data)
@@ -149,7 +81,104 @@ function preprocess(data)
     )
 end
 
+# check equivalence of the 2
+function check_pop_hierarch() 
+    ldp1 = ldp_with_grad(pop_hierarch_reference(data.q_x_i, data.q_i, data.log_Zi, data.log_Ni)) 
+    
+    preprocessed = preprocess(data)
+    ldp2 = ldp_with_grad(pop_hierarch(preprocessed))  
 
+    dim = LogDensityProblems.dimension(ldp1)
+    point = randn(MersenneTwister(1), dim) 
+
+    @assert LogDensityProblems.logdensity_and_gradient(ldp1, point)[2] ≈ 
+            LogDensityProblems.logdensity_and_gradient(ldp2, point)[2]
+
+    @assert LogDensityProblems.logdensity(ldp1, point) - LogDensityProblems.logdensity(ldp2, point) ≈ @show preprocessed.log_normalization_offset
+end
+
+# compare performance 
+function benchmark(data)
+    ldp1 = ldp_with_grad(pop_hierarch_reference(data.q_x_i, data.q_i, data.log_Zi, data.log_Ni)) 
+    
+    preprocessed = preprocess(data)
+    ldp2 = ldp_with_grad(pop_hierarch(preprocessed))  
+
+    dim = LogDensityProblems.dimension(ldp1)
+    point = randn(MersenneTwister(1), dim) 
+
+    benchmark(ldp1, point, "Reference")  
+    benchmark(ldp2, point, "Faster")    
+end
+
+function benchmark(ldp, point, test_name)
+    println(test_name)
+    println(" - primal")
+    @btime LogDensityProblems.logdensity($ldp, $point)
+    println(" - with gradient (Forward Diff)")
+    @btime LogDensityProblems.logdensity_and_gradient($ldp, $point)
+    return nothing
+end
+
+
+
+## Viz
+
+function vector_to_matrix(vector::AbstractVector)
+    n_mass_bins = 5 
+    n_period_bins = 6 
+    @assert length(vector) == n_mass_bins * n_period_bins 
+    return reshape(vector, (n_period_bins, n_mass_bins))
+end
+
+function plot_hist(m)
+    @assert isa(m, AbstractVector) || (size(m, 1) == 1) || (size(m, 2) == 1)
+    matrix = vector_to_matrix(vec(m)) 
+    @show size(matrix)
+    fig, ax, hm = heatmap(matrix)
+    ax.xlabel = "Period bin"
+    ax.ylabel = "Mass ratio bin"
+    Colorbar(fig[1, 2], hm)
+    fig
+end
+
+specific_model(i) = plot_hist(vec(data.q_x_i[:, i]))
+
+function indep_models()
+    averaged = sum(data.q_x_i; dims = 2) / n_systems(data)
+    plot_hist(vec(averaged))
+end
+
+
+## Data loading
+
+root_dir = @__DIR__
+
+function load_data() 
+    data_file = "$root_dir/all-data.jld2"
+    if !isfile(data_file)
+        @info "Decompressing data" 
+        cd(root_dir) do 
+            run(`unzip all-data.jld2.zip`)
+        end
+    end
+    dict = load("all-data.jld2")
+    return dict["d"]
+end
+
+n_systems(data) = size(data.q_x_i)[2]
+
+data = load_data()
+
+subset(size) =
+    (;  log_Ni = data.log_Ni[1:size], 
+        log_Zi = data.log_Zi[1:size],
+        q_i = data.q_i,
+        q_x_i = data.q_x_i[:, 1:size],
+    )
+
+
+## General utils
 
 function exp_normalize!(log_weights)
     m = maximum(log_weights)
@@ -163,132 +192,13 @@ function normalize!(weights)
     return s
 end
 
-
-function log_sum_exp(x, y) 
-    m = min(x, y)
-    M = max(x, y) 
-    return M + log1p(exp(m - M))
-end
-
-function logd(data, eta, pi)
-    K = size(data.q_x_i, 1)
-    n_stars = size(data.q_x_i, 2)
-    result = 0.0
-    for i in 1:n_stars
-        current = -Inf 
-        for x in 1:K
-            current = log_sum_exp(current, log(pi) + log(eta[x]) + data.log_Zi[i] + log(data.q_x_i[x,i]) - log(data.q_i[x]))
-        end
-        result += current
-    end
-    return result
-end
-
-function mock_manual(vec, mtx)
-    n_systems, n_bins = size(mtx)
-    result = 0.0
-    for system in 1:n_systems 
-        inner = 0.0 
-        for k in 1:n_bins 
-            inner += mtx[system, k] * vec[k]
-        end
-        result += log(inner)
-    end 
-    return result
-
-end
-
-function mock_mm(vec, mtx)
-    # 0.000383 seconds (4 allocations: 812.594 KiB)
-    res = mtx * vec 
-    sum(log.(res))
-end
-
-function mock_mmt(vec, mtx)
-    # 0.000383 seconds (4 allocations: 812.594 KiB)
-    res = vec * mtx
-    sum(log.(res))
-end
-
 function ldp_with_grad(model)
     ldp = DynamicPPL.LogDensityFunction(model)
     DynamicPPL.link!!(ldp.varinfo, model)
     return LogDensityProblemsAD.ADgradient(Val(:ForwardDiff), ldp)
 end
 
-function bench_evals(data)
-
-    dim = 30
-    ldp_with_grad1 = ldp_with_grad(pop_hierarch_reference(data.q_x_i, data.q_i, data.log_Zi, data.log_Ni))
-
-    println("DynamicPPL (primal)")
-    p = randn(dim)
-    for i in 1:5
-        @time LogDensityProblems.logdensity(ldp_with_grad1, p)
-    end
-
-    println("DynamicPPL2 (primal)")
-    ldp_with_grad2 = ldp_with_grad(pop_hierarch(preprocess(data)))
-    for i in 1:5
-        @time LogDensityProblems.logdensity(ldp_with_grad2, p)
-    end
-
-    println("DynamicPPL (FwdDiff)")
-    p = randn(dim)
-    for i in 1:5
-        @time LogDensityProblems.logdensity_and_gradient(ldp_with_grad1, p)
-    end
-
-    println("DynamicPPL2 (FwdDiff)")
-    ldp_with_grad2 = ldp_with_grad(pop_hierarch(preprocess(data)))
-    for i in 1:5
-        @time LogDensityProblems.logdensity_and_gradient(ldp_with_grad2, p)
-    end
-
-
-    println("Pure Julia (primal)")
-    for i in 1:5 
-        @time logd(data, rand(dim), rand())
-    end
-    println("Pure Julia (Enzyme)")
-    for i in 1:5 
-        buff = zeros(dim)
-        @time Enzyme.autodiff(Enzyme.Reverse, logd, Const(data), Duplicated(rand(dim), buff), Const(rand()))
-    end
-    v = rand(30) 
-    m = rand(52000, 30)
-    println("Mock_mm")
-    @assert mock_mm(v, m) ≈ mock_manual(v, m)
-    for i in 1:5 
-        @time x = mock_mm(v, m)
-    end
-    # println("Mock_mm (Enzyme)")
-    # @assert mock_mm(v, m) ≈ mock_manual(v, m)
-
-    vt = rand(30)'
-    mt = rand(30, 52000)
-    println("Mock_mmt")
-    for i in 1:5 
-        @time x = mock_mmt(vt, mt)
-    end
-
-    # println("Mock_mmt (Enzyme)")
-    
-    # for i in 1:5 
-    #     dv = zeros(30)
-    #     @time x = Enzyme.autodiff(Enzyme.Reverse, mock_mm, Duplicated(v, dv), Const(m))
-    # end
-    println("Mock_manual")
-    for i in 1:5 
-        @time x = mock_manual(v, m)
-    end
-    println("Mock_manual (Enzyme)")
-    dv = zeros(30)
-    for i in 1:5 
-        dv = zeros(30)
-        @time x = Enzyme.autodiff(Enzyme.Reverse, mock_manual, Duplicated(v, dv), Const(m))
-    end
-end
+## Call samplers
 
 run_pigeons(data) = pigeons(;
                         target = TuringLogPotential(pop_hierarch(preprocess(data))),
@@ -298,8 +208,4 @@ run_pigeons(data) = pigeons(;
                         record = [traces; record_default()]
                     )
 
-function run_turing(data)
-    model = pop_hierarch(preprocess(data))
-    sample(model, NUTS(), 1000)
-
-end
+run_turing(data) = sample(pop_hierarch(preprocess(data)), NUTS(), 1000)
