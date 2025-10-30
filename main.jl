@@ -209,3 +209,23 @@ run_pigeons(data) = pigeons(;
                     )
 
 run_turing(data) = sample(pop_hierarch(preprocess(data)), NUTS(), 1000)
+
+
+## Reactant test 
+
+using Reactant 
+
+function sinsum_add(x, y)
+   return sum(sin.(x) .+ y)
+end
+
+function react_test()
+    input1 = Reactant.ConcreteRArray(ones(10))
+    input2 = Reactant.ConcreteRArray(ones(10))
+
+    f = @compile sinsum_add(input1,input2)
+
+    # one can now run the program
+    f(input1, input2)
+
+end
