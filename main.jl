@@ -211,21 +211,24 @@ run_pigeons(data) = pigeons(;
 run_turing(data) = sample(pop_hierarch(preprocess(data)), NUTS(), 1000)
 
 
-## Reactant test 
+## GPU tests
 
-using Reactant 
+using Metal 
 
-function sinsum_add(x, y)
-   return sum(sin.(x) .+ y)
+
+function f(coeff_gpu, vector_buffer_gpu, my_vector_cpu)
+    copyto!(vector_buffer_gpu, my_vector_cpu)
+    #result = sum(my_vector_cpu)
+    Metal.synchronize()
+    #return result
+    # return sum(log.(vector_buffer_gpu * coeff_gpu))
 end
 
-function react_test()
-    input1 = Reactant.ConcreteRArray(ones(10))
-    input2 = Reactant.ConcreteRArray(ones(10))
 
-    f = @compile sinsum_add(input1,input2)
 
-    # one can now run the program
-    f(input1, input2)
-
+function metal_test()
+    coeff_gpu = Metal.rand(30, 52000) 
+    vector_buffer_gpu = Metal.zeros(1, 30)
+    my_vector_cpu = rand(1, 30)
+    @btime f($coeff_gpu, $vector_buffer_gpu, $my_vector_cpu)
 end
