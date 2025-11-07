@@ -82,7 +82,7 @@ function preprocess(data)
 end
 
 # check equivalence of the 2
-function check_pop_hierarch() 
+function check_pop_hierarch(data) 
     ldp1 = ldp_with_grad(pop_hierarch_reference(data.q_x_i, data.q_i, data.log_Zi, data.log_Ni)) 
     
     preprocessed = preprocess(data)
@@ -156,14 +156,14 @@ function plot_hist(m)
     fig
 end
 
-specific_model(i) = plot_hist(data.q_x_i[:, i])
+specific_model(i, data) = plot_hist(data.q_x_i[:, i])
 
-function indep_models()
+function indep_models(data)
     averaged = sum(data.q_x_i; dims = 2) / n_systems(data)
     plot_hist(averaged)
 end
 
-function just_one_row(row)
+function just_one_row(row, data)
     _, n_stars = size(data.q_x_i)
     s = zeros(6, 5)
     for i in 1:n_stars
@@ -179,7 +179,7 @@ function just_one_row(row)
     fig
 end
 
-function bf_slice(condition)
+function bf_slice(condition, data)
     n_bins, n_stars = size(data.q_x_i)
     sum = zeros(n_bins)
     n = 0
@@ -193,8 +193,8 @@ function bf_slice(condition)
     plot_hist(sum/n)
 end
 
-function bf_plot(xline = nothing)
-    sorted_BF = sort(BF)
+function bf_plot(data, xline = nothing)
+    sorted_BF = sort(BF(data))
     fig, ax, l = lines(-10:0.1:10, x -> searchsortedfirst(sorted_BF, x)/length(sorted_BF))
     if xline !== nothing
         vlines!(ax, [xline], color=:red, linestyle=:dash)
@@ -203,7 +203,7 @@ function bf_plot(xline = nothing)
 end
 
 
-function mass_histogram(i)
+function mass_histogram(i, data)
     result = Float64[] 
     # p(y | M_0) 
     push!(result, data.log_Ni[i]) 
@@ -241,7 +241,7 @@ function is_unimodal(list)
     return true
 end
 
-function fraction_unimodal_mass_histogram()
+function fraction_unimodal_mass_histogram(data)
     n_unimodal = 0 
     _, n_stars = size(data.q_x_i) 
     for i in 1:n_stars 
@@ -269,12 +269,24 @@ function load_data()
     return dict["d"]
 end
 
-n_systems(data) = size(data.q_x_i)[2]
-data = load_data()
-BF = data.log_Zi - data.log_Ni 
-index_of_ranks = sortperm(BF)
+real_data = load_data()
 
-function subset(size)
+n_systems(data) = size(data.q_x_i)[2]
+BF(data) = data.log_Zi - data.log_Ni 
+index_of_ranks(data) = sortperm(BF(data))
+
+synt_data = let
+    q_i = fill(1/30, 30)
+    q_x_i = zeros(30, 1000)
+    q_x_i[1:15,1:end÷2] .= 1/15
+    q_x_i[25:30,end÷2+1:end] .= 1/5
+    log_Ni = zeros(1000)
+    log_Zi = zeros(1000)
+    log_Zi[end÷2+1:end] .= log(5)
+    (;q_i,q_x_i,log_Ni,log_Zi)
+end
+
+function subset(size, data)
     (;  log_Ni = data.log_Ni[1:size], 
         log_Zi = data.log_Zi[1:size],
         q_i = data.q_i,
@@ -367,14 +379,10 @@ function trevor_diagnostic(chains)
     return result
 end 
 
-function run_experiment(use_symm::Bool, subset_size::Int, use_pigeons)
-    input = subset(subset_size) 
-    if use_symm 
-        input = symmetrize(input)
-    end
+function run_experiment(use_pigeons::Bool, data)
     chains = use_pigeons ?
-                to_chains(run_pigeons(input)) :
-                run_turing(input) 
+                to_chains(run_pigeons(data)) :
+                run_turing(data) 
     diagnostic = trevor_diagnostic(chains) 
     return (;
         chains, 
@@ -384,13 +392,4 @@ function run_experiment(use_symm::Bool, subset_size::Int, use_pigeons)
     )
 end
 
-
-
-#=
-
-Things to vary
-
-- with/without symmetrization 
-- subset size
-
-=#
+nothing
