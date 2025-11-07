@@ -92,11 +92,6 @@ p(y | M_k) &= \frac{p(M_k, y)}{p(M_k)} \\
 Each term is computed from the single star models as follows: $p(M_0^c)$ is the prior on the presence of a planet, i.e., $1/2$; $p(y | M_0^c)$ is the marginal likelihood for the with-planet model, i.e., $Z_i$; and $p(M_k | M_0^c, y)$ is obtained from the fraction of draws in the with-planet model in bin $M_k$. 
 """
 
-# ╔═╡ 4b3e48ae-d8fc-4652-ac85-49b002611111
-md"""
-### Extra plots
-"""
-
 # ╔═╡ 2032fb51-b4c2-4ab9-9943-20c5ce06fb2b
 specific_model(star_index, data)
 
@@ -107,6 +102,7 @@ specific_model(star_index, data)
 # ╟─048a6ebc-9007-4024-b46f-4d69ab50bef1
 # ╟─2b62f275-fb55-4fff-b995-a9aa5393a752
 # ╟─45623653-ad5e-4772-8811-8d27576d7019
+# ╠═2032fb51-b4c2-4ab9-9943-20c5ce06fb2b
 # ╟─6315055b-9a18-4a0f-857d-ce075586bf3d
 # ╠═b71890ee-013f-4511-bea0-3b69bb298ee4
 # ╟─26b53966-bf90-4bfc-aefa-3df61c5dbcbb
@@ -114,5 +110,3 @@ specific_model(star_index, data)
 # ╟─87125a02-e4b3-4ef8-8cdb-d094ec56c8c3
 # ╠═79298702-42f2-49b9-8848-8e827fcc10a4
 # ╟─c6f34447-453d-481b-b424-9b8da98e876b
-# ╟─4b3e48ae-d8fc-4652-ac85-49b002611111
-# ╠═2032fb51-b4c2-4ab9-9943-20c5ce06fb2b
