@@ -1,6 +1,6 @@
 using JLD2, CairoMakie, LogExpFunctions, Pigeons, DynamicPPL, Distributions, 
     Turing, Enzyme, LogDensityProblems, LogDensityProblemsAD, ForwardDiff, 
-    LinearAlgebra, Random, BenchmarkTools
+    LinearAlgebra, Random, BenchmarkTools, MCMCChains, Pluto, PlutoUI
 
 
 
@@ -129,12 +129,26 @@ function vector_to_matrix(vector::AbstractVector)
     n_period_bins = 6 
     @assert length(vector) == n_mass_bins * n_period_bins 
     return reshape(vector, (n_period_bins, n_mass_bins))
+end 
+
+matrix_to_vector(matrix::AbstractMatrix) =  vec(matrix) 
+
+function test_vector_matrix_conversion()
+    v = collect(1:30) 
+    M = vector_to_matrix(v)
+    v2 = matrix_to_vector(M)
+    M2 = vector_to_matrix(v2)
+    @assert v == v2
+    @assert M == M2
 end
 
 function plot_hist(m)
-    @assert isa(m, AbstractVector) || (size(m, 1) == 1) || (size(m, 2) == 1)
-    matrix = vector_to_matrix(vec(m)) 
-    @show size(matrix)
+    matrix = if isa(m, AbstractVector) || (size(m, 1) == 1) || (size(m, 2) == 1)
+        vector_to_matrix(vec(m)) 
+    else
+        @assert size(m) == (6, 5)
+        m
+    end
     fig, ax, hm = heatmap(matrix)
     ax.xlabel = "Period bin"
     ax.ylabel = "Mass ratio bin"
@@ -142,15 +156,104 @@ function plot_hist(m)
     fig
 end
 
-specific_model(i) = plot_hist(vec(data.q_x_i[:, i]))
+specific_model(i) = plot_hist(data.q_x_i[:, i])
 
 function indep_models()
     averaged = sum(data.q_x_i; dims = 2) / n_systems(data)
-    plot_hist(vec(averaged))
+    plot_hist(averaged)
+end
+
+function just_one_row(row)
+    _, n_stars = size(data.q_x_i)
+    s = zeros(6, 5)
+    for i in 1:n_stars
+        mtx = vector_to_matrix(data.q_x_i[:, i]) 
+        for j in 1:6
+            s[j, row] += mtx[j, row] 
+        end
+    end
+    fig, ax, hm = heatmap(s/sum(s))
+    ax.xlabel = "Period bin"
+    ax.ylabel = "Mass ratio bin"
+    Colorbar(fig[1, 2], hm)
+    fig
+end
+
+function bf_slice(condition)
+    n_bins, n_stars = size(data.q_x_i)
+    sum = zeros(n_bins)
+    n = 0
+    for i in 1:n_stars 
+        BF = data.log_Zi[i] - data.log_Ni[i]
+        if condition(BF)
+            sum += data.q_x_i[:, i]
+            n += 1
+        end
+    end
+    plot_hist(sum/n)
+end
+
+function bf_plot(xline = nothing)
+    sorted_BF = sort(BF)
+    fig, ax, l = lines(-10:0.1:10, x -> searchsortedfirst(sorted_BF, x)/length(sorted_BF))
+    if xline !== nothing
+        vlines!(ax, [xline], color=:red, linestyle=:dash)
+    end
+    return fig
 end
 
 
-## Data loading
+function mass_histogram(i)
+    result = Float64[] 
+    # p(y | M_0) 
+    push!(result, data.log_Ni[i]) 
+    m = vector_to_matrix(data.q_x_i[:, i]) 
+    _, n_mass_bins = size(m)
+    for mass_index in 1:n_mass_bins 
+        # for i > 0,
+        # p(y | M_i) = p(M_i, y) / p(M_i) = p(M_i, M_{>0}, y) / p(M_i) = p(M_{>0}) p(y | M_{>0}) p(M_i | M_{>0}, y) / p(M_i) 
+        push!(result, log(1/2) + data.log_Zi[i] + log(sum(m[:, mass_index]) - log(1/5))) 
+    end
+    exp_normalize!(result)
+    return result
+end
+
+function has_mode(list, i)
+    if i == 1 
+        return list[2] < list[1]
+    elseif i == length(list)
+        return list[end - 1] < list[end]
+    else
+        return list[i - 1] < list[i] && list[i + 1] < list[i] 
+    end
+end
+
+function is_unimodal(list)
+    found_mode = false 
+    for i in 1:length(list) 
+        if has_mode(list, i) 
+            if found_mode 
+                return false 
+            end 
+            found_mode = true
+        end
+    end
+    return true
+end
+
+function fraction_unimodal_mass_histogram()
+    n_unimodal = 0 
+    _, n_stars = size(data.q_x_i) 
+    for i in 1:n_stars 
+        if is_unimodal(mass_histogram(i))
+            n_unimodal += 1
+        end
+    end
+    return n_unimodal/n_stars
+end
+
+
+## Data loading, preprocessing
 
 root_dir = @__DIR__
 
@@ -167,15 +270,42 @@ function load_data()
 end
 
 n_systems(data) = size(data.q_x_i)[2]
-
 data = load_data()
+BF = data.log_Zi - data.log_Ni 
+index_of_ranks = sortperm(BF)
 
-subset(size) =
+function subset(size)
     (;  log_Ni = data.log_Ni[1:size], 
         log_Zi = data.log_Zi[1:size],
         q_i = data.q_i,
         q_x_i = data.q_x_i[:, 1:size],
     )
+end
+
+low_mass_sum(matrix::Matrix) = sum(matrix[:, 1]) 
+
+function symmetrize(matrix::Matrix) 
+    @assert size(matrix) == (6, 5)
+    new_row = ones(6) * low_mass_sum(matrix) / 6 
+    matrix[:, 1] = new_row 
+    return matrix
+end
+
+function symmetrize(data)
+    new_q = similar(data.q_x_i) 
+    _, n_stars = size(data.q_x_i) 
+    for star in 1:n_stars 
+        m = vector_to_matrix(data.q_x_i[:, star]) 
+        symm = symmetrize(m)
+        new_q[:, star] = matrix_to_vector(symm)
+    end 
+    return (;  
+        log_Ni = data.log_Ni, 
+        log_Zi = data.log_Zi,
+        q_i = data.q_i,
+        q_x_i = new_q
+        )
+end
 
 
 ## General utils
@@ -198,7 +328,8 @@ function ldp_with_grad(model)
     return LogDensityProblemsAD.ADgradient(Val(:ForwardDiff), ldp)
 end
 
-## Call samplers
+
+## Call samplers, postprocessing utilities
 
 run_pigeons(data) = pigeons(;
                         target = TuringLogPotential(pop_hierarch(preprocess(data))),
@@ -208,27 +339,58 @@ run_pigeons(data) = pigeons(;
                         record = [traces; record_default()]
                     )
 
+function to_chains(pt)
+    # temp bug fix
+    original_names = sample_names(pt)
+    @assert length(original_names) == 31
+    fixed_names = original_names[1:29]
+    push!(fixed_names, Symbol("η[30]"))
+    append!(fixed_names, original_names[30:31])
+    array = sample_array(pt)
+    @assert sum(array[1, 1:30, 1]) ≈ 1.
+    return Chains(array, fixed_names, Dict(:internals => [:log_density]))
+end
+
 run_turing(data) = sample(pop_hierarch(preprocess(data)), NUTS(), 1000)
 
+function trevor_diagnostic(chains)
+    n_mcmc_iters, n_params, _ = size(chains) 
+    result = Float64[] 
+    for i in 1:n_mcmc_iters 
+        pi = chains[i, :π, 1] 
+        etas = vec(Array(chains[i, 1:30, 1]))
+        @assert sum(etas) ≈ 1. 
+        sum_undetectable_etas = low_mass_sum(vector_to_matrix(etas))
+        ratio = (1 - pi) / (1 - pi + pi * sum_undetectable_etas) 
+        push!(result, ratio)
+    end
+    return result
+end 
 
-## GPU tests
-
-using Metal 
-
-
-function f(coeff_gpu, vector_buffer_gpu, my_vector_cpu)
-    copyto!(vector_buffer_gpu, my_vector_cpu)
-    #result = sum(my_vector_cpu)
-    Metal.synchronize()
-    #return result
-    # return sum(log.(vector_buffer_gpu * coeff_gpu))
+function run_experiment(use_symm::Bool, subset_size::Int, use_pigeons)
+    input = subset(subset_size) 
+    if use_symm 
+        input = symmetrize(input)
+    end
+    chains = use_pigeons ?
+                to_chains(run_pigeons(input)) :
+                run_turing(input) 
+    diagnostic = trevor_diagnostic(chains) 
+    return (;
+        chains, 
+        diagnostic, 
+        hist = hist(diagnostic), 
+        trace = lines(diagnostic)
+    )
 end
 
 
 
-function metal_test()
-    coeff_gpu = Metal.rand(30, 52000) 
-    vector_buffer_gpu = Metal.zeros(1, 30)
-    my_vector_cpu = rand(1, 30)
-    @btime f($coeff_gpu, $vector_buffer_gpu, $my_vector_cpu)
-end
+#=
+
+Things to vary
+
+- with/without symmetrization 
+- subset size
+
+=#
