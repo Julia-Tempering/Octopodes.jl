@@ -257,15 +257,15 @@ end
 
 root_dir = @__DIR__
 
-function load_data() 
-    data_file = "$root_dir/all-data.jld2"
+function load_data(file_name = "all-data.jld2") 
+    data_file = "$root_dir/$file_name"
     if !isfile(data_file)
         @info "Decompressing data" 
         cd(root_dir) do 
-            run(`unzip all-data.jld2.zip`)
+            run(`unzip $file_name.zip`)
         end
     end
-    dict = load("all-data.jld2")
+    dict = load(data_file)
     return dict["d"]
 end
 
