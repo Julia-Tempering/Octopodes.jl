@@ -211,8 +211,8 @@ function mass_histogram(i, data)
     _, n_mass_bins = size(m)
     for mass_index in 1:n_mass_bins 
         # for i > 0,
-        # p(y | M_i) = p(M_i, y) / p(M_i) = p(M_i, M_{>0}, y) / p(M_i) = p(M_{>0}) p(y | M_{>0}) p(M_i | M_{>0}, y) / p(M_i) 
-        push!(result, log(1/2) + data.log_Zi[i] + log(sum(m[:, mass_index]) - log(1/5))) 
+        # see derivations at bottom of notebook in mass_hist.jl 
+        push!(result, data.log_Zi[i] + log(sum(m[:, mass_index]) - log(1/5))) 
     end
     exp_normalize!(result)
     return result
