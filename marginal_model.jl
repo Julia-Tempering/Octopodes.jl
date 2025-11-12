@@ -85,6 +85,9 @@ md"""
 ## Posterior using MCMC
 """
 
+# ╔═╡ 3304a13b-c3be-46c5-ba71-977460723ed8
+@bind algo Select([:pigeons, :turing])
+
 # ╔═╡ 7f3dadd7-c885-479e-91d5-c2bef47e29b9
 @assert length(unique(sorted_log_BF)) == length(sorted_log_BF)
 
@@ -95,7 +98,13 @@ selected_indices = find_selected_indices(log_BF(data), subsampled_log_BFs)
 subsampled_data = subset(selected_indices, data)
 
 # ╔═╡ 9129a7da-17a1-4a3c-aac2-2a19bfd1f130
-chains = run_turing(subsampled_data)
+chains = if algo == :turing 
+		run_turing(subsampled_data, 10_000)
+	elseif algo == :pigeons 
+		to_chains(run_pigeons(subsampled_data))
+	else
+		error()
+	end
 
 # ╔═╡ b449658e-7f69-4713-a5cb-24105464191d
 mcmc_pi_samples = vec(Array(chains[:, :π, :]))
@@ -132,6 +141,7 @@ lines(mcmc_pi_samples)
 # ╠═6ac4beac-d01f-494e-82f0-45114ece3be9
 # ╠═c194518c-5482-441f-93c3-42662bd83e98
 # ╟─089a4738-1308-4308-b754-a264af339e20
+# ╠═3304a13b-c3be-46c5-ba71-977460723ed8
 # ╟─5c2bf009-af27-49a3-bb21-af8a281f713f
 # ╠═7f3dadd7-c885-479e-91d5-c2bef47e29b9
 # ╠═35558c39-c1b3-46b1-97a0-ad1a979a9f17

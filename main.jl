@@ -365,10 +365,10 @@ end
 
 run_pigeons(data) = pigeons(;
                         target = TuringLogPotential(pop_hierarch(preprocess(data))),
-                        n_chains = 16,
-                        multithreaded = false,
+                        n_chains = 8,
+                        multithreaded = true,
                         n_rounds = 10,
-                        record = [traces; record_default()]
+                        record = [traces, round_trip]
                     )
 
 function to_chains(pt)
@@ -383,7 +383,7 @@ function to_chains(pt)
     return Chains(array, fixed_names, Dict(:internals => [:log_density]))
 end
 
-run_turing(data) = sample(pop_hierarch(preprocess(data)), NUTS(), 1000)
+run_turing(data, n_iters = 1000) = sample(pop_hierarch(preprocess(data)), NUTS(), n_iters)
 
 function trevor_diagnostic(chains)
     n_mcmc_iters, n_params, _ = size(chains) 
