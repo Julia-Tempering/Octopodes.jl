@@ -184,8 +184,8 @@ function bf_slice(condition, data)
     sum = zeros(n_bins)
     n = 0
     for i in 1:n_stars 
-        BF = data.log_Zi[i] - data.log_Ni[i]
-        if condition(BF)
+        log_BF = data.log_Zi[i] - data.log_Ni[i]
+        if condition(log_BF)
             sum += data.q_x_i[:, i]
             n += 1
         end
@@ -194,8 +194,8 @@ function bf_slice(condition, data)
 end
 
 function bf_plot(data, xline = nothing)
-    sorted_BF = sort(BF(data))
-    fig, ax, l = lines(-10:0.1:10, x -> searchsortedfirst(sorted_BF, x)/length(sorted_BF))
+    sorted_log_BF = sort(log_BF(data))
+    fig, ax, l = lines(-10:0.1:10, x -> searchsortedfirst(sorted_log_BF, x)/length(sorted_log_BF))
     if xline !== nothing
         vlines!(ax, [xline], color=:red, linestyle=:dash)
     end
@@ -272,8 +272,8 @@ end
 real_data = load_data()
 
 n_systems(data) = size(data.q_x_i)[2]
-BF(data) = data.log_Zi - data.log_Ni 
-index_of_ranks(data) = sortperm(BF(data))
+log_BF(data) = data.log_Zi - data.log_Ni 
+index_of_ranks(data) = sortperm(log_BF(data))
 
 synt_data = let
     q_i = fill(1/30, 30)
@@ -286,12 +286,19 @@ synt_data = let
     (;q_i,q_x_i,log_Ni,log_Zi)
 end
 
-function subset(size, data)
-    (;  log_Ni = data.log_Ni[1:size], 
-        log_Zi = data.log_Zi[1:size],
+subset(size::Int, data) = subset(1:size, data)
+
+function subset(indices, data)
+    (;  log_Ni = data.log_Ni[indices], 
+        log_Zi = data.log_Zi[indices],
         q_i = data.q_i,
-        q_x_i = data.q_x_i[:, 1:size],
+        q_x_i = data.q_x_i[:, indices],
     )
+end 
+
+function find_selected_indices(vector, subset) 
+    as_set = Set(subset)
+    return findall(x -> x in as_set, vector)
 end
 
 low_mass_sum(matrix::Matrix) = sum(matrix[:, 1]) 
@@ -318,6 +325,19 @@ function symmetrize(data)
         q_x_i = new_q
         )
 end
+
+data_sources() = [:real, :synthetic, :spike_and_slab_nov_7_2025] 
+
+load_data_source(data_source) = 
+    if data_source == :real 
+		load_data()
+	elseif data_source == :synthetic 
+		synt_data 
+	elseif data_source == :spike_and_slab_nov_7_2025 
+		load_data("spike-and-slab-nov-7-2025.jld2")
+	else
+		error() 
+	end
 
 
 ## General utils
@@ -390,6 +410,27 @@ function run_experiment(use_pigeons::Bool, data)
         hist = hist(diagnostic), 
         trace = lines(diagnostic)
     )
+end
+
+## Marginal model
+
+planet_probabilities(log_BFs) = 1 ./ (1 .+ exp.(-log_BFs))
+
+function marginal_pi_posterior_density(eps, log_BFs)
+    pis = 0.0:eps:1.0 
+    result = similar(pis)
+    prs = planet_probabilities(log_BFs)
+    for posterior_discretization_index in eachindex(result)
+        pi = pis[posterior_discretization_index]
+        sum = 0.0 
+        for star_index in eachindex(log_BFs) 
+            sum += log(pi * prs[star_index] + (1 - pi) * (1 - prs[star_index]))
+        end
+        result[posterior_discretization_index] = sum
+    end
+    exp_normalize!(result)
+    result = result*length(pis) # make it a density
+    return result
 end
 
 nothing
