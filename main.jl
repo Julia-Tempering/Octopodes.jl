@@ -207,12 +207,13 @@ function mass_histogram(i, data)
     result = Float64[] 
     # p(y | M_0) 
     push!(result, data.log_Ni[i]) 
-    m = vector_to_matrix(data.q_x_i[:, i]) 
+    m = vector_to_matrix(data.q_x_i[:, i])
+    @assert sum(m) ≈ 1 
     _, n_mass_bins = size(m)
     for mass_index in 1:n_mass_bins 
         # for i > 0,
         # see derivations at bottom of notebook in mass_hist.jl 
-        push!(result, data.log_Zi[i] + log(sum(m[:, mass_index]) - log(1/5))) 
+        push!(result, data.log_Zi[i] + log(sum(m[:, mass_index])) - log(1/5)) 
     end
     exp_normalize!(result)
     return result
@@ -266,9 +267,20 @@ function load_data(file_name = "all-data.jld2")
         end
     end
     dict = load(data_file)
-    return sort_by_bf(dict["d"])
+    result = sort_by_bf(dict["d"])
+    renormalize(result.q_x_i)
+    return result
 end
 
+function renormalize(q_x_i)
+    n_bins, n_stars = size(q_x_i)
+    for star in 1:n_stars 
+        old = @view q_x_i[:, star] 
+        norm = sum(old)
+        q_x_i[:, star]  = old / norm
+    end
+    return nothing
+end
 
 n_systems(data) = size(data.q_x_i)[2]
 log_BF(data) = data.log_Zi - data.log_Ni 
