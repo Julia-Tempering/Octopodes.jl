@@ -63,9 +63,17 @@ end
 function preprocess(data)
     n_bins, n_stars = size(data.q_x_i)
     coefficients = zeros(n_bins + 1, n_stars) 
-    log_normalization_offset = 0.0
-    for i in 1:n_stars
-        for x in 1:n_bins
+    log_normalization_offset = 0.0 
+    @assert sum(data.q_i) ≈ 1 
+    for i in 1:n_stars 
+        @assert sum(data.q_x_i[:,i]) ≈ 1 
+        @assert isfinite(data.log_Zi[i]) 
+        @assert isfinite(data.log_Ni[i]) 
+
+        for x in 1:n_bins 
+            @assert data.q_x_i[x,i] ≥ 0 
+            @assert data.q_i[x] ≥ 0 
+            
             coefficients[x, i] = data.q_x_i[x,i] > 0 && data.q_i[x] > 0 ?
                 data.log_Zi[i] + log(data.q_x_i[x, i]) - log(data.q_i[x]) :
                 -Inf

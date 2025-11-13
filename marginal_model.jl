@@ -80,6 +80,11 @@ subsampled_log_BFs = sorted_log_BF[subsampled_log_BFs_indices]
 # ╔═╡ 966f9272-cd74-4861-83b6-b47aa1e5695f
 md"""
 ## Posterior over π (numerical integration)
+
+Note: this model is slightly different. It is not hierarchical on the η which 
+means that it is not learning where the population's mass and period are located.
+So imagine we want to add one more star to the posterior: with the hierarchical 
+model the marginal likelihood for the with-planet would not be computed from the uniform but from the predictive on η.
 """
 
 # ╔═╡ c194518c-5482-441f-93c3-42662bd83e98
