@@ -306,6 +306,7 @@ synt_data = let
     log_Ni = zeros(1000)
     log_Zi = zeros(1000)
     log_Zi[end÷2+1:end] .= log(5)
+    renormalize(q_x_i)
     sort_by_bf((;q_i,q_x_i,log_Ni,log_Zi))
 end
 
