@@ -58,7 +58,12 @@ right = 3
 @bind N NumberField(2:99, default=5)
 
 # ╔═╡ 42cff42b-5e59-4a55-9c6b-831df83cdfd1
-subsample(x, size) = x[round.(Int, range(1, length(x), length=size))]
+function subsample(x, size) 
+	@assert size ≤ length(x) "$size $(length(x))"
+	result = x[round.(Int, range(1, length(x), length=size))]
+	@assert length(result) == size
+	return result
+end
 
 # ╔═╡ 6bdd76b3-d1da-40b7-88e0-f14436e78fcb
 low_BFs_indices = subsample(1:searchsortedfirst(sorted_log_BF, left), 100-N)
@@ -121,7 +126,7 @@ mean(mcmc_pi_samples)
 lines(mcmc_pi_samples)
 
 # ╔═╡ Cell order:
-# ╠═ba56fbca-8edf-4e04-916b-ed02b967bd11
+# ╟─ba56fbca-8edf-4e04-916b-ed02b967bd11
 # ╟─05993f6d-d590-4889-9e96-5cb23f84ecf0
 # ╠═3eeac7d7-dfca-4d9c-be4b-805615782c88
 # ╟─f8483d3c-3f88-4a65-92e2-036befa0440d
