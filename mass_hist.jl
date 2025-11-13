@@ -39,7 +39,7 @@ md"""
 data = load_data_source(data_source)
 
 # ╔═╡ 2b62f275-fb55-4fff-b995-a9aa5393a752
-sorted_log_BF = sort(log_BF(data))
+sorted_log_BF = log_BF(data)
 
 # ╔═╡ 45623653-ad5e-4772-8811-8d27576d7019
 md"""
@@ -47,19 +47,16 @@ md"""
 """
 
 # ╔═╡ 6315055b-9a18-4a0f-857d-ce075586bf3d
-@bind star_rank PlutoUI.Slider(1:length(data.log_Ni))
-
-# ╔═╡ b71890ee-013f-4511-bea0-3b69bb298ee4
-bf_plot(data, sorted_log_BF[star_rank]) 
-
-# ╔═╡ 26b53966-bf90-4bfc-aefa-3df61c5dbcbb
-star_index = index_of_ranks(data)[star_rank]
+@bind star_index PlutoUI.Slider(1:length(data.log_Ni))
 
 # ╔═╡ 2032fb51-b4c2-4ab9-9943-20c5ce06fb2b
 specific_model(star_index, data)
 
+# ╔═╡ b71890ee-013f-4511-bea0-3b69bb298ee4
+bf_plot(data, sorted_log_BF[star_index]) 
+
 # ╔═╡ 24f88627-4189-4148-892f-1fd619a37bc8
-sorted_log_BF[star_rank]
+sorted_log_BF[star_index]
 
 # ╔═╡ 09a1994a-ea5c-4885-83af-42334cd7fba7
 md"""
@@ -96,13 +93,12 @@ Each term is computed from the single star models as follows: $p(M_0^c)$ is the 
 # ╟─db7a3852-bbe9-11f0-0699-739e8aaf1015
 # ╟─e932a371-9366-4818-a46a-72a1b258604f
 # ╠═16843a78-2884-4eb8-b74f-4da1826ac4b0
-# ╟─048a6ebc-9007-4024-b46f-4d69ab50bef1
-# ╟─2b62f275-fb55-4fff-b995-a9aa5393a752
+# ╠═048a6ebc-9007-4024-b46f-4d69ab50bef1
+# ╠═2b62f275-fb55-4fff-b995-a9aa5393a752
 # ╟─45623653-ad5e-4772-8811-8d27576d7019
 # ╠═2032fb51-b4c2-4ab9-9943-20c5ce06fb2b
-# ╟─6315055b-9a18-4a0f-857d-ce075586bf3d
+# ╠═6315055b-9a18-4a0f-857d-ce075586bf3d
 # ╠═b71890ee-013f-4511-bea0-3b69bb298ee4
-# ╟─26b53966-bf90-4bfc-aefa-3df61c5dbcbb
 # ╠═24f88627-4189-4148-892f-1fd619a37bc8
 # ╟─09a1994a-ea5c-4885-83af-42334cd7fba7
 # ╟─87125a02-e4b3-4ef8-8cdb-d094ec56c8c3

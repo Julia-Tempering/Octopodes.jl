@@ -266,14 +266,25 @@ function load_data(file_name = "all-data.jld2")
         end
     end
     dict = load(data_file)
-    return dict["d"]
+    return sort_by_bf(dict["d"])
 end
 
-real_data = load_data()
 
 n_systems(data) = size(data.q_x_i)[2]
 log_BF(data) = data.log_Zi - data.log_Ni 
-index_of_ranks(data) = sortperm(log_BF(data))
+
+function sort_by_bf(data)
+    lbfs = log_BF(data)
+    perm = sortperm(lbfs)
+    return (;
+        log_Ni = data.log_Ni[perm],
+        log_Zi = data.log_Zi[perm],
+        q_i = data.q_i, 
+        q_x_i = data.q_x_i[:, perm]
+    )
+end
+
+real_data = load_data()
 
 synt_data = let
     q_i = fill(1/30, 30)
@@ -283,10 +294,8 @@ synt_data = let
     log_Ni = zeros(1000)
     log_Zi = zeros(1000)
     log_Zi[end÷2+1:end] .= log(5)
-    (;q_i,q_x_i,log_Ni,log_Zi)
+    sort_by_bf((;q_i,q_x_i,log_Ni,log_Zi))
 end
-
-subset(size::Int, data) = subset(1:size, data)
 
 function subset(indices, data)
     (;  log_Ni = data.log_Ni[indices], 
@@ -326,7 +335,7 @@ function symmetrize(data)
         )
 end
 
-data_sources() = [:real, :synthetic, :spike_and_slab_nov_7_2025] 
+data_sources() = [:real, :synthetic, :spike_and_slab_nov_7_2025, :dat_44k] 
 
 load_data_source(data_source) = 
     if data_source == :real 
@@ -335,6 +344,8 @@ load_data_source(data_source) =
 		synt_data 
 	elseif data_source == :spike_and_slab_nov_7_2025 
 		load_data("spike-and-slab-nov-7-2025.jld2")
+    elseif data_source == :dat_44k 
+		load_data("dat-44k.jld2")
 	else
 		error() 
 	end

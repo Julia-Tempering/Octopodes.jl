@@ -38,8 +38,8 @@ md"""
 # ╔═╡ f8483d3c-3f88-4a65-92e2-036befa0440d
 data = load_data_source(data_source)
 
-# ╔═╡ 87fbed8c-582a-4d70-9bf6-ff565c41e8c4
-sorted_log_BF = sort(log_BF(data))
+# ╔═╡ c40df1d0-7911-4295-bcb9-112ba72fb0c3
+sorted_log_BF = log_BF(data)
 
 # ╔═╡ 049caba4-831a-47ae-b3e7-85bc00e93f5a
 md"""
@@ -61,13 +61,16 @@ right = 3
 subsample(x, size) = x[round.(Int, range(1, length(x), length=size))]
 
 # ╔═╡ 6bdd76b3-d1da-40b7-88e0-f14436e78fcb
-low_BFs = subsample(sorted_log_BF[1:searchsortedfirst(sorted_log_BF, left)-1], 100-N)
+low_BFs_indices = subsample(1:searchsortedfirst(sorted_log_BF, left), 100-N)
 
 # ╔═╡ 1548bc74-051f-468f-a862-d56fdf9b63c7
-high_BFs = subsample(sorted_log_BF[searchsortedlast(sorted_log_BF, right)+1:end], N)
+high_BFs_indices = subsample((searchsortedlast(sorted_log_BF, right)):n_systems(data), N)
 
 # ╔═╡ 7ca830ec-8f8a-41c1-b676-5c42dc6ab2de
-subsampled_log_BFs = [low_BFs; high_BFs]
+subsampled_log_BFs_indices = [low_BFs_indices; high_BFs_indices]
+
+# ╔═╡ 0d2f29c2-ab4d-490c-8764-f65025d19bd2
+subsampled_log_BFs = sorted_log_BF[subsampled_log_BFs_indices]
 
 # ╔═╡ 966f9272-cd74-4861-83b6-b47aa1e5695f
 md"""
@@ -88,14 +91,8 @@ md"""
 # ╔═╡ 3304a13b-c3be-46c5-ba71-977460723ed8
 @bind algo Select([:pigeons, :turing])
 
-# ╔═╡ 7f3dadd7-c885-479e-91d5-c2bef47e29b9
-@assert length(unique(sorted_log_BF)) == length(sorted_log_BF)
-
-# ╔═╡ 33e71a55-07e0-45a8-ba09-b6bb7ad8bf79
-selected_indices = find_selected_indices(log_BF(data), subsampled_log_BFs)
-
 # ╔═╡ e1cbce0b-de9a-4d13-b529-ab9fc94a3632
-subsampled_data = subset(selected_indices, data)
+subsampled_data = subset(subsampled_log_BFs_indices, data)
 
 # ╔═╡ 9129a7da-17a1-4a3c-aac2-2a19bfd1f130
 chains = if algo == :turing 
@@ -128,7 +125,7 @@ lines(mcmc_pi_samples)
 # ╟─05993f6d-d590-4889-9e96-5cb23f84ecf0
 # ╠═3eeac7d7-dfca-4d9c-be4b-805615782c88
 # ╟─f8483d3c-3f88-4a65-92e2-036befa0440d
-# ╟─87fbed8c-582a-4d70-9bf6-ff565c41e8c4
+# ╠═c40df1d0-7911-4295-bcb9-112ba72fb0c3
 # ╟─049caba4-831a-47ae-b3e7-85bc00e93f5a
 # ╟─491c2be6-a3cc-48bd-9ee8-c3a5ca94a2f1
 # ╟─787e4500-f426-4a00-a065-ab9251f4d126
@@ -137,15 +134,14 @@ lines(mcmc_pi_samples)
 # ╠═6bdd76b3-d1da-40b7-88e0-f14436e78fcb
 # ╠═1548bc74-051f-468f-a862-d56fdf9b63c7
 # ╠═7ca830ec-8f8a-41c1-b676-5c42dc6ab2de
+# ╠═0d2f29c2-ab4d-490c-8764-f65025d19bd2
 # ╟─966f9272-cd74-4861-83b6-b47aa1e5695f
 # ╠═6ac4beac-d01f-494e-82f0-45114ece3be9
 # ╠═c194518c-5482-441f-93c3-42662bd83e98
 # ╟─089a4738-1308-4308-b754-a264af339e20
 # ╠═3304a13b-c3be-46c5-ba71-977460723ed8
 # ╟─5c2bf009-af27-49a3-bb21-af8a281f713f
-# ╠═7f3dadd7-c885-479e-91d5-c2bef47e29b9
 # ╠═35558c39-c1b3-46b1-97a0-ad1a979a9f17
-# ╠═33e71a55-07e0-45a8-ba09-b6bb7ad8bf79
 # ╠═e1cbce0b-de9a-4d13-b529-ab9fc94a3632
 # ╠═9129a7da-17a1-4a3c-aac2-2a19bfd1f130
 # ╠═b449658e-7f69-4713-a5cb-24105464191d
