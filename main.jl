@@ -450,7 +450,7 @@ end
 
 planet_probabilities(log_BFs) = 1 ./ (1 .+ exp.(-log_BFs))
 
-function marginal_pi_posterior_density(eps, log_BFs)
+function semi_hierarchical_pi_posterior_density(eps, log_BFs)
     pis = 0.0:eps:1.0 
     result = similar(pis)
     

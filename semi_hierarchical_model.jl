@@ -98,7 +98,7 @@ model the marginal likelihood for the with-planet would not be computed from the
 eps=0.001
 
 # ╔═╡ 6ac4beac-d01f-494e-82f0-45114ece3be9
-lines(0.0:eps:1.0, marginal_pi_posterior_density(eps, subsampled_log_BFs))
+lines(0.0:eps:1.0, semi_hierarchical_pi_posterior_density(eps, subsampled_log_BFs))
 
 # ╔═╡ b0d1aa3a-10dc-4808-8df4-1210850f9d14
 md"""
@@ -163,7 +163,7 @@ md"""
 """
 
 # ╔═╡ fd567661-494c-49c6-bfd9-2989349b5c20
-lines(0.0:eps:1.0, marginal_pi_posterior_density(eps, log_BF(data)))
+lines(0.0:eps:1.0, semi_hierarchical_pi_posterior_density(eps, log_BF(data)))
 
 # ╔═╡ 06651b24-5e38-49bc-9c91-ed60f0b6d241
 md"""
