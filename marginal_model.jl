@@ -102,8 +102,12 @@ lines(0.0:eps:1.0, marginal_pi_posterior_density(eps, subsampled_log_BFs))
 
 # ╔═╡ b0d1aa3a-10dc-4808-8df4-1210850f9d14
 md"""
-## Non-hierchical (indep octo-fitter) 
+## Non-hierchical (indep octo-fitter), analytic posterior mean
+
+Here π is not useful to look at, but we can look at the sum of the indicators divided by the number of stars. 
 """
+
+
 
 # ╔═╡ 81371db4-3ead-4215-8ec3-3e5736a2b81c
 expected_n_stars_with_planets(data) = mean(planet_probabilities(log_BF(data)))

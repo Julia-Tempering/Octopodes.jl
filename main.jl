@@ -453,12 +453,12 @@ planet_probabilities(log_BFs) = 1 ./ (1 .+ exp.(-log_BFs))
 function marginal_pi_posterior_density(eps, log_BFs)
     pis = 0.0:eps:1.0 
     result = similar(pis)
-    prs = planet_probabilities(log_BFs)
+    
     for posterior_discretization_index in eachindex(result)
         pi = pis[posterior_discretization_index]
         sum = 0.0 
         for star_index in eachindex(log_BFs) 
-            sum += log(pi * prs[star_index] + (1 - pi) * (1 - prs[star_index]))
+            sum += logsumexp(log(pi) + log_BFs[star_index], log1p(-pi))
         end
         result[posterior_discretization_index] = sum
     end
