@@ -333,28 +333,30 @@ end
 
 low_mass_sum(matrix::Matrix) = sum(matrix[:, 1]) 
 
-function symmetrize(matrix::Matrix) 
-    @assert size(matrix) == (6, 5)
-    new_row = ones(6) * low_mass_sum(matrix) / 6 
-    matrix[:, 1] = new_row 
-    return matrix
-end
+# Symmetrize needs to be rewritten: should adjust also log_Ni to achieve p(y | M_0) = p(y | M_1)
 
-function symmetrize(data)
-    new_q = similar(data.q_x_i) 
-    _, n_stars = size(data.q_x_i) 
-    for star in 1:n_stars 
-        m = vector_to_matrix(data.q_x_i[:, star]) 
-        symm = symmetrize(m)
-        new_q[:, star] = matrix_to_vector(symm)
-    end 
-    return (;  
-        log_Ni = data.log_Ni, 
-        log_Zi = data.log_Zi,
-        q_i = data.q_i,
-        q_x_i = new_q
-        )
-end
+# function symmetrize(matrix::Matrix) 
+#     @assert size(matrix) == (6, 5)
+#     new_row = ones(6) * low_mass_sum(matrix) / 6 
+#     matrix[:, 1] = new_row 
+#     return matrix
+# end
+
+# function symmetrize(data)
+#     new_q = similar(data.q_x_i) 
+#     _, n_stars = size(data.q_x_i) 
+#     for star in 1:n_stars 
+#         m = vector_to_matrix(data.q_x_i[:, star]) 
+#         symm = symmetrize(m)
+#         new_q[:, star] = matrix_to_vector(symm)
+#     end 
+#     return (;  
+#         log_Ni = data.log_Ni, 
+#         log_Zi = data.log_Zi,
+#         q_i = data.q_i,
+#         q_x_i = new_q
+#         )
+# end
 
 data_sources() = [:real, :synthetic, :spike_and_slab_nov_7_2025, :dat_44k] 
 
