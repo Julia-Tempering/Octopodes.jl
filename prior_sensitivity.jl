@@ -70,7 +70,7 @@ processed_log_BF = posterior_annealing*shuffled_log_BF[1:subsampling]
 
 # ╔═╡ 7424e650-c1f2-4fb9-b964-ef2ca25397ee
 let (fig, ax, _) = lines(planet_probabilities(sort(processed_log_BF)))
-	ax.xlabel = "stars (ranked by octofitter posterior on planet presence)"
+	ax.xlabel = "star indices (ranked by octofitter posterior on planet presence)"
 	ax.ylabel = "octofitter posterior on planet presence"
 	fig
 end
@@ -106,7 +106,7 @@ end
 # ╔═╡ Cell order:
 # ╟─626dcd7e-c4b7-11f0-02ee-69a651bb978d
 # ╟─50a52357-6f34-4b7f-84bf-2197b785a338
-# ╠═687a0b79-41b2-44af-85b9-23b31465679d
+# ╟─687a0b79-41b2-44af-85b9-23b31465679d
 # ╟─4689f123-84a1-4ccf-8afd-0a711c714489
 # ╟─030d6d4c-8078-4ecd-b69e-c67c695ca239
 # ╟─89795bd3-6948-4f0d-91f9-fbd0eb6db712

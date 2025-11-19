@@ -79,8 +79,8 @@ n_stars, n_mcmc_iters = size(X)
 
 # ╔═╡ 6b543109-fe14-46d5-8169-184c02c36e99
 let (fig, ax, _) = heatmap(X)
-	ax.xlabel = "star"
-	ax.ylabel = "MCMC iteration"
+	ax.xlabel = "star indices"
+	ax.ylabel = "octofitter MCMC iteration"
 	fig
 end
 
@@ -89,7 +89,7 @@ F = vec(sum(X, dims = 2) .+ 1) / (n_mcmc_iters + 2)
 
 # ╔═╡ 1de999c8-505c-4d0b-a6c9-742c5993cf79
 let (fig, ax, _) = lines(sort(F)) 
-	ax.xlabel = "star (sorted by F)" 
+	ax.xlabel = "star indices (sorted by octofitter posterior planet presence F)" 
 	ax.ylabel = "F"
 	fig
 end
@@ -106,7 +106,7 @@ where the asymptotic variance of the transformed expression can be computed with
 
 $$\Delta = \nabla h(f)^T \cdot A \cdot \nabla h(f).$$
 
-In our case $h: \mathbb{R}^S \to \mathbb{R}$ where $S$ is the number of stars.
+In our case $h: \mathbb{R}^S \to \mathbb{R}$ where $S$ is the number of stars. It is a function that takes as input the output computed from octofitter, $F$, computes the semi-hierarchical posterior analytically and returns the posterior mean.
 
 From this, a 95% confidence interval can be constructed with a radius given by:
 
@@ -185,7 +185,7 @@ end
 # ╔═╡ f9a71bc8-55ec-47dd-9278-a2024c5c7384
 md"""
 
-Next, we use the following relationship between asymptotic variance $\sigma_a$ (diagonal entries of $A$), variance $\sigma$, $n$ and $n_e$:
+Next, we use the following relationship between asymptotic variance $\sigma^2_a$ (diagonal entries of $A$), variance $\sigma^2$, $n$ and $n_e$:
 
 $$\sigma_a = \frac{\sigma^2 n}{n_e}.$$
 
