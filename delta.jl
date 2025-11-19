@@ -206,7 +206,7 @@ $$\begin{align*}
 radius = begin
 	s = 0.0 
 	for star_index in 1:n_stars 
-		n_e_s = isnan(n_e[star_index]) ? n_mcmc_iters : n_e[star_index]
+		n_e_s = isnan(n_e[star_index]) ? 1 : n_e[star_index] # conservative: if NaN, set ESS to 1
 		sigma2_s = F[star_index] * (1.0 - F[star_index]) 
 		s += grad[star_index]^2 * sigma2_s / n_e_s
 	end
