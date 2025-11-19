@@ -1,6 +1,6 @@
 using JLD2, CairoMakie, LogExpFunctions, Pigeons, DynamicPPL, Distributions, 
     Turing, Enzyme, LogDensityProblems, LogDensityProblemsAD, ForwardDiff, 
-    LinearAlgebra, Random, BenchmarkTools, MCMCChains, Pluto, PlutoUI
+    LinearAlgebra, Random, BenchmarkTools, MCMCChains, Pluto, PlutoUI, FFTW
 
 
 
@@ -211,7 +211,7 @@ function bf_plot(data, xline = nothing)
 end
 
 
-function mass_histogram(i, data)
+function mass_histogram(i, data, collapse_observable_bins = false)
     result = Float64[] 
     # p(y | M_0) 
     push!(result, data.log_Ni[i]) 
@@ -450,21 +450,82 @@ end
 
 planet_probabilities(log_BFs) = 1 ./ (1 .+ exp.(-log_BFs))
 
-function semi_hierarchical_pi_posterior_density(eps, log_BFs)
-    pis = 0.0:eps:1.0 
-    result = similar(pis)
+function log_BF(planet_probabilities::Vector)
+    @assert all(0 .<= planet_probabilities .<= 1)
+    return log.(planet_probabilities) - log1p.(-planet_probabilities)
+end
+
+function test_log_BF()
+    l = log_BF(real_data) 
+    p = planet_probabilities(l)
+    l2 = log_BF(p)
+    p2 = planet_probabilities(l2) 
+    @assert p ≈ p2
+    # NB: Bayes factors can lose quite a bit of precision, e.g.: 35.64410571678599 -> 0.9999999999999998 -> 36.04365338911715
+end
+
+function laplace(indicators::Vector, smoothing)
+    @assert Set(indicators) == Set([0.0, 1.0])
+    return (sum(indicators) + smoothing) / (length(indicators) + 2 * smoothing)
+end
+
+function semi_hierarchical_pi_posterior_density(eps, log_BFs::Vector{T}, beta_prior_alpha = 1.0, beta_prior_beta = 1.0) where {T}
+    pis = eps:eps:(1.0-eps) 
+    result = zeros(T, length(pis))
+    prior = Beta(beta_prior_alpha, beta_prior_beta)
     
     for posterior_discretization_index in eachindex(result)
         pi = pis[posterior_discretization_index]
-        sum = 0.0 
+        sum = logpdf(prior, pi)
         for star_index in eachindex(log_BFs) 
             sum += logsumexp(log(pi) + log_BFs[star_index], log1p(-pi))
         end
         result[posterior_discretization_index] = sum
     end
     exp_normalize!(result)
-    result = result*length(pis) # make it a density
+    result = result*length(pis) #  make it a density
     return result
 end
+
+function numerical_mean(eps, posterior)
+    pis = eps:eps:(1.0-eps) 
+    sum = 0.0
+    for posterior_discretization_index in eachindex(posterior)
+        sum += eps * pis[posterior_discretization_index] * posterior[posterior_discretization_index]
+    end
+    return sum
+end
+
+
+## Sensitivity to noise in individual posterior estimates 
+
+binarize(matrix::Matrix{UInt8}) = map(x -> x > 0 ? 1.0 : 0.0, matrix)
+load_indicators(file) = binarize(load(file)["A"])
+
+assignments = load_indicators("bin-assignments-all-v0.0.jld2")
+
+function ess(matrix)
+    n_stars, n_mcmc_iters = size(matrix) 
+    result = zeros(n_stars) 
+    for star_index in 1:n_stars 
+        result[star_index] = MCMCChains.ess(@view matrix[star_index, :]; autocov_method = FFTAutocovMethod(), maxlag = typemax(Int))
+    end
+    return result 
+end 
+
+
+
+function test_delta_method_ad()
+    x = [0.2, 0.3]
+    dx = zeros(length(x))
+    eps = 0.01
+    h(planet_probabilities, eps) = numerical_mean(eps, semi_hierarchical_pi_posterior_density(eps, log_BF(planet_probabilities)))
+    Enzyme.autodiff(Enzyme.Reverse, h, Enzyme.Active, Enzyme.Duplicated(x, dx), Enzyme.Const(eps))
+    k(planet_probabilities) = h(planet_probabilities, eps)
+    dx_fwd = ForwardDiff.gradient(k, x) 
+
+    @assert dx[1] ≈ dx_fwd[1]
+end
+
 
 nothing

@@ -84,21 +84,25 @@ subsampled_log_BFs_indices = [low_BFs_indices; high_BFs_indices]
 # ╔═╡ 0d2f29c2-ab4d-490c-8764-f65025d19bd2
 subsampled_log_BFs = sorted_log_BF[subsampled_log_BFs_indices]
 
+# ╔═╡ e1cbce0b-de9a-4d13-b529-ab9fc94a3632
+subsampled_data = subset(subsampled_log_BFs_indices, data)
+
+# ╔═╡ 7ced4462-7e6e-4d62-b552-1cdd7c1b1bdb
+bf_plot(subsampled_data)
+
 # ╔═╡ 966f9272-cd74-4861-83b6-b47aa1e5695f
 md"""
 ## Semi-hierarchical posterior over π (numerical integration)
 
 Note: this model is slightly different. It is only hierarchical on π and not hierarchical on the η which 
 means that it is not learning where the population's mass and period are located.
-So imagine we want to add one more star to the posterior: with the hierarchical 
-model the marginal likelihood for the with-planet would not be computed from the uniform but from the predictive on η.
 """
 
 # ╔═╡ c194518c-5482-441f-93c3-42662bd83e98
 eps=0.001
 
 # ╔═╡ 6ac4beac-d01f-494e-82f0-45114ece3be9
-lines(0.0:eps:1.0, semi_hierarchical_pi_posterior_density(eps, subsampled_log_BFs))
+lines(eps:eps:(1.0-eps), semi_hierarchical_pi_posterior_density(eps, subsampled_log_BFs))
 
 # ╔═╡ b0d1aa3a-10dc-4808-8df4-1210850f9d14
 md"""
@@ -111,9 +115,6 @@ Here π is not useful to look at, but we can look at the sum of the indicators d
 
 # ╔═╡ 81371db4-3ead-4215-8ec3-3e5736a2b81c
 expected_n_stars_with_planets(data) = mean(planet_probabilities(log_BF(data)))
-
-# ╔═╡ e1cbce0b-de9a-4d13-b529-ab9fc94a3632
-subsampled_data = subset(subsampled_log_BFs_indices, data)
 
 # ╔═╡ 91ebcb5e-a8e0-4b9c-9645-a8db1718d16e
 expected_n_stars_with_planets(subsampled_data)
@@ -163,7 +164,7 @@ md"""
 """
 
 # ╔═╡ fd567661-494c-49c6-bfd9-2989349b5c20
-lines(0.0:eps:1.0, semi_hierarchical_pi_posterior_density(eps, log_BF(data)))
+lines(eps:eps:(1.0-eps), semi_hierarchical_pi_posterior_density(eps, log_BF(data)))
 
 # ╔═╡ 06651b24-5e38-49bc-9c91-ed60f0b6d241
 md"""
@@ -189,12 +190,13 @@ expected_n_stars_with_planets(data)
 # ╟─1548bc74-051f-468f-a862-d56fdf9b63c7
 # ╟─7ca830ec-8f8a-41c1-b676-5c42dc6ab2de
 # ╟─0d2f29c2-ab4d-490c-8764-f65025d19bd2
+# ╠═e1cbce0b-de9a-4d13-b529-ab9fc94a3632
+# ╠═7ced4462-7e6e-4d62-b552-1cdd7c1b1bdb
 # ╟─966f9272-cd74-4861-83b6-b47aa1e5695f
 # ╟─6ac4beac-d01f-494e-82f0-45114ece3be9
 # ╟─c194518c-5482-441f-93c3-42662bd83e98
 # ╟─b0d1aa3a-10dc-4808-8df4-1210850f9d14
 # ╠═81371db4-3ead-4215-8ec3-3e5736a2b81c
-# ╠═e1cbce0b-de9a-4d13-b529-ab9fc94a3632
 # ╠═91ebcb5e-a8e0-4b9c-9645-a8db1718d16e
 # ╟─089a4738-1308-4308-b754-a264af339e20
 # ╟─3304a13b-c3be-46c5-ba71-977460723ed8
