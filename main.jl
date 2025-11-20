@@ -478,7 +478,7 @@ function semi_hierarchical_pi_posterior_density(eps, log_BFs::Vector{T}, beta_pr
         pi = pis[posterior_discretization_index]
         sum = logpdf(prior, pi)
         for star_index in eachindex(log_BFs) 
-            sum += logsumexp(log(pi) + log_BFs[star_index], log1p(-pi))
+            sum += log_BFs[star_index] == Inf ? log(pi) : logsumexp(log(pi) + log_BFs[star_index], log1p(-pi))
         end
         result[posterior_discretization_index] = sum
     end
@@ -525,6 +525,21 @@ function test_delta_method_ad()
     dx_fwd = ForwardDiff.gradient(k, x) 
 
     @assert dx[1] ≈ dx_fwd[1]
+end
+
+
+function synthetic_discrete_unid_logBFs(rng, true_proportion, n_stars)
+    result = zeros(n_stars)
+    for s in 1:n_stars
+        # simulate true x 
+        true_x = (rand(rng) < true_proportion ? 1 : 0)
+        # simulate y 
+        y = (true_x == 0 ? 0 : rand(rng, [0, 1]))
+        # create the posterior and logBF 
+        logBF = (y == 0 ? -log(2.0) : Inf)
+        result[s] = logBF
+    end
+    return result 
 end
 
 

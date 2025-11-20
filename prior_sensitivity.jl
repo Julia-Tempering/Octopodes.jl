@@ -31,19 +31,43 @@ end
 md"""
 ## Goal
 
-We consider the semi-hierchical model, i.e., sharing only the planet prevalence parameter $\pi$ across stars. 
+We consider the semi-hierarchical model, i.e., sharing only the planet prevalence parameter $\pi$ across stars. 
 
 The goal is to investigate the sensitivity of the posterior on $\pi$ with respect to the choice of prior, subsampling, and safe Bayes version of the octo-fitter posteriors.
 """
 
-# ╔═╡ 687a0b79-41b2-44af-85b9-23b31465679d
-@bind data_source Select(data_sources(); default=:dat_44k)
+# ╔═╡ a1640c79-2298-445d-ad36-573afa698b9a
+md"""
+## Data source
+"""
 
-# ╔═╡ 4689f123-84a1-4ccf-8afd-0a711c714489
-data = load_data_source(data_source)
+# ╔═╡ f446a929-8b57-4bd2-bce8-62ffbedeb542
+use_real_data = @bind use_real_data CheckBox()
 
-# ╔═╡ 030d6d4c-8078-4ecd-b69e-c67c695ca239
-shuffled_log_BF = shuffle(MersenneTwister(1), log_BF(data))
+# ╔═╡ 6d8b34c6-0eb4-4555-9dcc-26dcea1c35bc
+use_real_data ? 
+	md"""
+	Real data based on `dat_44k`.
+	""" : 
+	md"""
+	The synthetic data is generated as follows:
+
+	1. Select a true proportion of stars $\pi^\star$ where $x_i = 1$ (you can select this proportion using the slider below).
+	2. For each star, sample $x^*_i$ according to a Bernoulli with parameter $\pi^*$. 
+	3. Sample $y_i$ as follows: if $x^*_i = 0$, set $y_i = 0$; if $x^*_i = 1$ sample $y_i$ uniformly from $\{0, 1\}$. 
+
+	Only $y_i$ is used for inference.
+
+	Use the dial below to set the true proportion of stars with $x_i = 1$ (this information is not provided in the inference algorithm, but shown as a dashed green light below):
+	"""
+
+# ╔═╡ 352b1f8e-ef10-4744-a1de-825a025ead19
+use_real_data ? nothing : (@bind true_proportion PlutoUI.Slider(0.0:0.01:1.0; default = 0.7, show_value = true))
+
+# ╔═╡ f267e40e-4d39-432f-b34e-ff8ed2d9e5c2
+shuffled_log_BF = use_real_data ? 
+	shuffle(MersenneTwister(11), log_BF(load_data_source(:dat_44k))) :
+	synthetic_discrete_unid_logBFs(MersenneTwister(11), true_proportion, 50000)
 
 # ╔═╡ 89795bd3-6948-4f0d-91f9-fbd0eb6db712
 md"""
@@ -53,7 +77,7 @@ We define subsampling as picking a subset of stars at random.
 
 Safe Bayes consists in the following: each octo-fitter contributes a posterior probability for the planet model, consider annealing these probabilities. 
 
-The sufficient statistics for computing the semi-hierchical posterior consists in the individual octo-fitter posteriors on planet presence, with the annealing and subsampling applied. The sufficient statistics can be visualized by sorting stars with respect to these processed octo-fitter posteriors:
+The sufficient statistics for computing the semi-hierarchical posterior consists in the individual octo-fitter posteriors on planet presence, with the annealing and subsampling applied. The sufficient statistics can be visualized by sorting stars with respect to these processed octo-fitter posteriors:
 """
 
 # ╔═╡ 467d3f9d-cb2c-4acb-9989-2da1111ea579
@@ -100,18 +124,23 @@ let (fig, ax, _) = lines(eps:eps:(1-eps), prior, linestyle = :dash)
 	lines!(ax, eps:eps:(1-eps), posterior)
 	ax.xlabel = "π  (solid: posterior; dashed: prior)" 
 	ax.ylabel = "density"
+	if !use_real_data
+		vlines!(ax, [true_proportion], color=:green, linestyle=:dash)
+	end
 	fig
 end
 
 # ╔═╡ Cell order:
 # ╟─626dcd7e-c4b7-11f0-02ee-69a651bb978d
 # ╟─50a52357-6f34-4b7f-84bf-2197b785a338
-# ╟─687a0b79-41b2-44af-85b9-23b31465679d
-# ╟─4689f123-84a1-4ccf-8afd-0a711c714489
-# ╟─030d6d4c-8078-4ecd-b69e-c67c695ca239
+# ╟─a1640c79-2298-445d-ad36-573afa698b9a
+# ╟─f446a929-8b57-4bd2-bce8-62ffbedeb542
+# ╟─6d8b34c6-0eb4-4555-9dcc-26dcea1c35bc
+# ╟─352b1f8e-ef10-4744-a1de-825a025ead19
+# ╟─f267e40e-4d39-432f-b34e-ff8ed2d9e5c2
 # ╟─89795bd3-6948-4f0d-91f9-fbd0eb6db712
 # ╟─7424e650-c1f2-4fb9-b964-ef2ca25397ee
-# ╟─b88d9aad-ee9f-4357-82c6-0a377fe8d83d
+# ╠═b88d9aad-ee9f-4357-82c6-0a377fe8d83d
 # ╟─467d3f9d-cb2c-4acb-9989-2da1111ea579
 # ╟─4b336540-4d0b-4942-8d64-d2ca5c176142
 # ╟─cc30d78d-9e4e-4e81-855c-16a75173bebc

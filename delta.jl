@@ -32,11 +32,11 @@ md"""
 
 ## Goal
 
-We consider the semi-hierchical model, i.e., sharing only the planet prevalence parameter $\pi$ across stars. 
+We consider the semi-hierarchical model, i.e., sharing only the planet prevalence parameter $\pi$ across stars. 
 
 The goal is to investigate the sensitivity of the posterior mean of $\pi$ with respect to the Monte Carlo noise of the individual octofitter runs. 
 
-Since $\pi$ is univariate, for a given set of octofitter posteriors, we can compute the posterior of the semi-hierchical model using numeric integration. This is a deterministic function of the octofitter posteriors, so we can do sensitivity analysis using the delta method. 
+Since $\pi$ is univariate, for a given set of octofitter posteriors, we can compute the posterior of the semi-hierarchical model using numeric integration. This is a deterministic function of the octofitter posteriors, so we can do sensitivity analysis using the delta method. 
 
 Before going into the math, it is useful to first qualitatively explore manual subsampling of the octofitter input and/or number of stars. 
 
@@ -51,7 +51,7 @@ stars_subsample = @bind stars_subsample PlutoUI.Slider(10:300; show_value=true)
 
 # ╔═╡ 9a7e5cba-ac46-49a7-8748-625ef003217b
 md"""
-It should be obvious from interaction with this widget that the posterior of the semi-hierchical model is robust to the Monte Carlo noise present in the octo-fitter runs. Nonetheless, the notes below derive a delta method confidence interval to quantify this.
+It should be obvious from interaction with this widget that the posterior of the semi-hierarchical model is robust to the Monte Carlo noise present in the octo-fitter runs. Nonetheless, the notes below derive a delta method confidence interval to quantify this.
 """
 
 # ╔═╡ 082897eb-ec10-4726-9388-bdafcd197b60
