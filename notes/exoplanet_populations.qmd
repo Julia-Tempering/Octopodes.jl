@@ -265,7 +265,7 @@ Then we use *model saturation* (Carlin and Chibs, 1995) to create one new octofi
 having the property that $p(b_i = 1 | y_i) = Z_i / (Z_i + N_i)$. 
 
 
-# The semi-hierchical model 
+# The semi-hierarchical model 
 
 The hierarchical model described so far is "full" in the sense that the different stars share both $\eta$ and $\pi$ 
 at the population level. 
@@ -279,7 +279,7 @@ b_i | \pi &\sim \distBern(\pi), \\
 \end{align*}
 and, finally, if $b_i = 1$, $y_i | \theta_i, \phi_i \sim L(y_i | \theta_i, \phi_i)$, else, $y_i | \psi_i \sim L_0(y_i | \psi_i)$. 
 
-We now turn to the problem of computing the posterior of the semi-hiearchical model from individual spike-and-slab models. 
+We now turn to the problem of computing the posterior of the semi-hierarchical model from individual spike-and-slab models. 
 The calculations are a special case of the material covered in the section on "adding a null model" by picking $K = 1$. 
 In that case, since there is a single bin, note that $q_{x,i} = q_i = \eta_x = 1$. 
 This yields (after division by $\prod_i N_i$):
