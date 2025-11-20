@@ -87,7 +87,7 @@ The sufficient statistics for computing the semi-hierarchical posterior consists
 perturbation_strength = @bind perturbation_strength PlutoUI.Slider(-1.0:0.01:1.0; default = 0.0, show_value = true)
 
 # ╔═╡ fb92bd68-e50e-407c-9767-0a92cbec2703
-perturbation(logBF) = logBF < 1 && logBF > - 1 ? logBF + perturbation_strength : logBF
+perturbation(logBF) = logBF < 1  ? logBF + perturbation_strength : logBF
 
 # ╔═╡ 467d3f9d-cb2c-4acb-9989-2da1111ea579
 @bind subsampling_strength PlutoUI.Slider(-4.0:0.01:0.0)
@@ -110,6 +110,9 @@ end
 
 # ╔═╡ 39635a89-6cb8-400c-9b38-b37ba7d09a7f
 lines(planet_probabilities.(sort(processed_log_BF)))
+
+# ╔═╡ bcefd5df-74a1-4233-9b51-e376322e242e
+sort(planet_probabilities.(processed_log_BF))
 
 # ╔═╡ 31895014-64ee-4c6e-9aa2-bcf739466be3
 md"""
@@ -159,6 +162,7 @@ md"""
 # ╟─7424e650-c1f2-4fb9-b964-ef2ca25397ee
 # ╠═39635a89-6cb8-400c-9b38-b37ba7d09a7f
 # ╠═b88d9aad-ee9f-4357-82c6-0a377fe8d83d
+# ╠═bcefd5df-74a1-4233-9b51-e376322e242e
 # ╠═fb92bd68-e50e-407c-9767-0a92cbec2703
 # ╠═60233d19-8d29-4cbe-8f20-a16b872809bf
 # ╟─467d3f9d-cb2c-4acb-9989-2da1111ea579
