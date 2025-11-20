@@ -56,7 +56,10 @@ use_real_data ?
 	2. For each star, sample $x^*_i$ according to a Bernoulli with parameter $\pi^*$. 
 	3. Sample $y_i$ as follows: if $x^*_i = 0$, set $y_i = 0$; if $x^*_i = 1$ sample $y_i$ uniformly from $\{0, 1\}$. 
 
-	Only $y_i$ is used for inference.
+	Only $y_i$ is used for inference. 
+
+	Note that any star with $y_i = 1$ has a kind of "unidentifiability": we cannot be sure if there is truly a star there or not. Nonetheless, the population parameter can be recovered in the regime of many exchangeable stars. This situation is similar to [the randomized response methodology](https://en.wikipedia.org/wiki/Randomized_response).[^1]
+
 
 	Use the dial below to set the true proportion of stars with $x_i = 1$ (this information is not provided in the inference algorithm, but shown as a dashed green light below):
 	"""
@@ -130,6 +133,11 @@ let (fig, ax, _) = lines(eps:eps:(1-eps), prior, linestyle = :dash)
 	fig
 end
 
+# ╔═╡ 4cff9f29-b6ba-473c-817f-3e90c1771f62
+md"""
+[^1]: Background on "randomized response", a technique to build a survey about sensitive questions. The survey person asks each respondent to flip a coin (secretely), and if it is tails to reply to the sensitive question truthfully (e.g. a question on drug use, etc), and if not, to reply uniformly at random. This way if there is a data breach any individual respondent can deny. But by probability calculation you can accurately reconstruct the population proportion of e.g., drug users. The parallel with our setup is that if there is no planet the star "answers truthfully", but if there is a planet, the star "flips a coin".
+"""
+
 # ╔═╡ Cell order:
 # ╟─626dcd7e-c4b7-11f0-02ee-69a651bb978d
 # ╟─50a52357-6f34-4b7f-84bf-2197b785a338
@@ -151,3 +159,4 @@ end
 # ╟─8bc5cba8-0615-4e01-9a47-f5115fec34c7
 # ╠═99c7db20-1e46-4233-8e03-4e3176daf314
 # ╠═8d2068bc-efe0-49fa-aa7b-8743440a4bfe
+# ╟─4cff9f29-b6ba-473c-817f-3e90c1771f62
