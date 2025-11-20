@@ -83,6 +83,12 @@ Safe Bayes consists in the following: each octo-fitter contributes a posterior p
 The sufficient statistics for computing the semi-hierarchical posterior consists in the individual octo-fitter posteriors on planet presence, with the annealing and subsampling applied. The sufficient statistics can be visualized by sorting stars with respect to these processed octo-fitter posteriors:
 """
 
+# ╔═╡ 60233d19-8d29-4cbe-8f20-a16b872809bf
+perturbation_strength = @bind perturbation_strength PlutoUI.Slider(-1.0:0.01:1.0; default = 0.0, show_value = true)
+
+# ╔═╡ fb92bd68-e50e-407c-9767-0a92cbec2703
+perturbation(logBF) = logBF < 1 && logBF > - 1 ? logBF + perturbation_strength : logBF
+
 # ╔═╡ 467d3f9d-cb2c-4acb-9989-2da1111ea579
 @bind subsampling_strength PlutoUI.Slider(-4.0:0.01:0.0)
 
@@ -93,7 +99,7 @@ subsampling = floor(Int, length(shuffled_log_BF) * 10.0^subsampling_strength)
 posterior_annealing = @bind posterior_annealing PlutoUI.Slider(0.0:0.01:1.0; default = 1.0, show_value = true)
 
 # ╔═╡ b88d9aad-ee9f-4357-82c6-0a377fe8d83d
-processed_log_BF = posterior_annealing*shuffled_log_BF[1:subsampling]
+processed_log_BF = perturbation.(posterior_annealing*shuffled_log_BF[1:subsampling])
 
 # ╔═╡ 7424e650-c1f2-4fb9-b964-ef2ca25397ee
 let (fig, ax, _) = lines(planet_probabilities(sort(processed_log_BF)))
@@ -101,6 +107,9 @@ let (fig, ax, _) = lines(planet_probabilities(sort(processed_log_BF)))
 	ax.ylabel = "octofitter posterior on planet presence"
 	fig
 end
+
+# ╔═╡ 39635a89-6cb8-400c-9b38-b37ba7d09a7f
+lines(planet_probabilities.(sort(processed_log_BF)))
 
 # ╔═╡ 31895014-64ee-4c6e-9aa2-bcf739466be3
 md"""
@@ -148,10 +157,13 @@ md"""
 # ╟─f267e40e-4d39-432f-b34e-ff8ed2d9e5c2
 # ╟─89795bd3-6948-4f0d-91f9-fbd0eb6db712
 # ╟─7424e650-c1f2-4fb9-b964-ef2ca25397ee
+# ╠═39635a89-6cb8-400c-9b38-b37ba7d09a7f
 # ╠═b88d9aad-ee9f-4357-82c6-0a377fe8d83d
+# ╠═fb92bd68-e50e-407c-9767-0a92cbec2703
+# ╠═60233d19-8d29-4cbe-8f20-a16b872809bf
 # ╟─467d3f9d-cb2c-4acb-9989-2da1111ea579
 # ╟─4b336540-4d0b-4942-8d64-d2ca5c176142
-# ╟─cc30d78d-9e4e-4e81-855c-16a75173bebc
+# ╠═cc30d78d-9e4e-4e81-855c-16a75173bebc
 # ╟─ff2225d1-e07c-4567-a807-fd56fabfa892
 # ╟─31895014-64ee-4c6e-9aa2-bcf739466be3
 # ╟─cb74b9c0-0290-41f7-8e3f-dfef72ab8611
