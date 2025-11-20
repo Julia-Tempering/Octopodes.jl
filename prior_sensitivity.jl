@@ -135,7 +135,7 @@ end
 
 # ╔═╡ 4cff9f29-b6ba-473c-817f-3e90c1771f62
 md"""
-[^1]: Background on "randomized response", a technique to build a survey about sensitive questions. The survey person asks each respondent to flip a coin (secretely), and if it is tails to reply to the sensitive question truthfully (e.g. a question on drug use, etc), and if not, to reply uniformly at random. This way if there is a data breach any individual respondent can deny. But by probability calculation you can accurately reconstruct the population proportion of e.g., drug users. The parallel with our setup is that if there is no planet the star "answers truthfully", but if there is a planet, the star "flips a coin".
+[^1]: Background on "randomized response", a technique to build a survey about sensitive questions. The survey person asks each respondent to flip a coin (secretely), and if it is tails to reply to the sensitive question truthfully (e.g. a question on drug use, etc), and if not, to reply uniformly at random. This way if there is a data breach any individual respondent can deny. But by probability calculation you can accurately reconstruct the population proportion of e.g., drug users. The rough parallel with our setup is that if there is no planet the star "answers truthfully", but if there is a planet, the star "flips a coin".
 """
 
 # ╔═╡ Cell order:
