@@ -42,35 +42,7 @@ md"""
 """
 
 # ╔═╡ f446a929-8b57-4bd2-bce8-62ffbedeb542
-use_real_data = @bind use_real_data CheckBox()
-
-# ╔═╡ 6d8b34c6-0eb4-4555-9dcc-26dcea1c35bc
-use_real_data ? 
-	md"""
-	Real data based on `dat_44k`.
-	""" : 
-	md"""
-	The synthetic data is generated as follows:
-
-	1. Select a true proportion of stars $\pi^\star$ where $x_i = 1$ (you can select this proportion using the slider below).
-	2. For each star, sample $x^*_i$ according to a Bernoulli with parameter $\pi^*$. 
-	3. Sample $y_i$ as follows: if $x^*_i = 0$, set $y_i = 0$; if $x^*_i = 1$ sample $y_i$ uniformly from $\{0, 1\}$. 
-
-	Only $y_i$ is used for inference. 
-
-	Note that any star with $y_i = 1$ has a kind of "unidentifiability": we cannot be sure if there is truly a star there or not. Nonetheless, the population parameter can be recovered in the regime of many exchangeable stars. This situation is similar to [the randomized response methodology](https://en.wikipedia.org/wiki/Randomized_response).[^1]
-
-
-	Use the dial below to set the true proportion of stars with $x_i = 1$ (this information is not provided in the inference algorithm, but shown as a dashed green light below):
-	"""
-
-# ╔═╡ 352b1f8e-ef10-4744-a1de-825a025ead19
-use_real_data ? nothing : (@bind true_proportion PlutoUI.Slider(0.0:0.01:1.0; default = 0.7, show_value = true))
-
-# ╔═╡ f267e40e-4d39-432f-b34e-ff8ed2d9e5c2
-shuffled_log_BF = use_real_data ? 
-	shuffle(MersenneTwister(11), log_BF(load_data_source(:dat_44k))) :
-	synthetic_discrete_unid_logBFs(MersenneTwister(11), true_proportion, 50000)
+data_source = @bind data_source Select([:synthetic, :dat_44k, :dat_44k_rebinned])
 
 # ╔═╡ 89795bd3-6948-4f0d-91f9-fbd0eb6db712
 md"""
@@ -92,27 +64,8 @@ perturbation(logBF) = logBF < 1  ? logBF + perturbation_strength : logBF
 # ╔═╡ 467d3f9d-cb2c-4acb-9989-2da1111ea579
 @bind subsampling_strength PlutoUI.Slider(-4.0:0.01:0.0)
 
-# ╔═╡ 4b336540-4d0b-4942-8d64-d2ca5c176142
-subsampling = floor(Int, length(shuffled_log_BF) * 10.0^subsampling_strength)
-
 # ╔═╡ cc30d78d-9e4e-4e81-855c-16a75173bebc
 posterior_annealing = @bind posterior_annealing PlutoUI.Slider(0.0:0.01:1.0; default = 1.0, show_value = true)
-
-# ╔═╡ b88d9aad-ee9f-4357-82c6-0a377fe8d83d
-processed_log_BF = perturbation.(posterior_annealing*shuffled_log_BF[1:subsampling])
-
-# ╔═╡ 7424e650-c1f2-4fb9-b964-ef2ca25397ee
-let (fig, ax, _) = lines(planet_probabilities(sort(processed_log_BF)))
-	ax.xlabel = "star indices (ranked by octofitter posterior on planet presence)"
-	ax.ylabel = "octofitter posterior on planet presence"
-	fig
-end
-
-# ╔═╡ 39635a89-6cb8-400c-9b38-b37ba7d09a7f
-lines(planet_probabilities.(sort(processed_log_BF)))
-
-# ╔═╡ bcefd5df-74a1-4233-9b51-e376322e242e
-sort(planet_probabilities.(processed_log_BF))
 
 # ╔═╡ 31895014-64ee-4c6e-9aa2-bcf739466be3
 md"""
@@ -131,15 +84,75 @@ eps = 0.01
 # ╔═╡ 99c7db20-1e46-4233-8e03-4e3176daf314
 prior = semi_hierarchical_pi_posterior_density(eps, Float64[], beta_prior_alpha, beta_prior_beta)
 
+# ╔═╡ b5b51360-ee5e-4ad7-894f-51b75f56fa51
+is_synthetic = data_source == :synthetic
+
+# ╔═╡ 6d8b34c6-0eb4-4555-9dcc-26dcea1c35bc
+is_synthetic ?  
+	md"""
+	The synthetic data is generated as follows:
+
+	1. Select a true proportion of stars $\pi^\star$ where $x_i = 1$ (you can select this proportion using the slider below).
+	2. For each star, sample $x^*_i$ according to a Bernoulli with parameter $\pi^*$. 
+	3. Sample $y_i$ as follows: if $x^*_i = 0$, set $y_i = 0$; if $x^*_i = 1$ sample $y_i$ uniformly from $\{0, 1\}$. 
+
+	Only $y_i$ is used for inference. 
+
+	Note that any star with $y_i = 1$ has a kind of "unidentifiability": we cannot be sure if there is truly a star there or not. Nonetheless, the population parameter can be recovered in the regime of many exchangeable stars. This situation is similar to [the randomized response methodology](https://en.wikipedia.org/wiki/Randomized_response).[^1]
+
+
+	Use the dial below to set the true proportion of stars with $x_i = 1$ (this information is not provided in the inference algorithm, but shown as a dashed green light below):
+	""" :
+	md"""
+	Real data based on `dat_44k`.
+	"""
+
+# ╔═╡ 352b1f8e-ef10-4744-a1de-825a025ead19
+is_synthetic ? (@bind true_proportion PlutoUI.Slider(0.0:0.01:1.0; default = 0.7, show_value = true)) : nothing
+
+# ╔═╡ f267e40e-4d39-432f-b34e-ff8ed2d9e5c2
+shuffled_log_BF = 
+	if data_source == :dat_44k
+		shuffle(MersenneTwister(11), log_BF(load_data_source(:dat_44k)))
+	elseif data_source == :dat_44k_rebinned
+		shuffle(MersenneTwister(11), rebinned_logBF(load_data_source(:dat_44k)))
+	elseif data_source == :synthetic
+		synthetic_discrete_unid_logBFs(MersenneTwister(11), true_proportion, 50000)
+	else
+		error()
+	end
+
+# ╔═╡ 4b336540-4d0b-4942-8d64-d2ca5c176142
+subsampling = floor(Int, length(shuffled_log_BF) * 10.0^subsampling_strength)
+
+# ╔═╡ b88d9aad-ee9f-4357-82c6-0a377fe8d83d
+processed_log_BF = perturbation.(posterior_annealing*shuffled_log_BF[1:subsampling])
+
+# ╔═╡ 7424e650-c1f2-4fb9-b964-ef2ca25397ee
+let (fig, ax, _) = lines(planet_probabilities(sort(processed_log_BF)))
+	ax.xlabel = "star indices (ranked by octofitter posterior on planet presence)"
+	ax.ylabel = "octofitter posterior on planet presence"
+	fig
+end
+
+# ╔═╡ 39635a89-6cb8-400c-9b38-b37ba7d09a7f
+lines(planet_probabilities.(sort(processed_log_BF)))
+
+# ╔═╡ bcefd5df-74a1-4233-9b51-e376322e242e
+sort(planet_probabilities.(processed_log_BF))
+
 # ╔═╡ 8d2068bc-efe0-49fa-aa7b-8743440a4bfe
 posterior = semi_hierarchical_pi_posterior_density(eps, processed_log_BF, beta_prior_alpha, beta_prior_beta)
+
+# ╔═╡ 10ca1bd9-2335-4156-9c08-34eb3991bece
+posterior_mean = numerical_mean(eps, posterior)
 
 # ╔═╡ ff2225d1-e07c-4567-a807-fd56fabfa892
 let (fig, ax, _) = lines(eps:eps:(1-eps), prior, linestyle = :dash)
 	lines!(ax, eps:eps:(1-eps), posterior)
 	ax.xlabel = "π  (solid: posterior; dashed: prior)" 
 	ax.ylabel = "density"
-	if !use_real_data
+	if is_synthetic
 		vlines!(ax, [true_proportion], color=:green, linestyle=:dash)
 	end
 	fig
@@ -169,10 +182,12 @@ md"""
 # ╟─4b336540-4d0b-4942-8d64-d2ca5c176142
 # ╠═cc30d78d-9e4e-4e81-855c-16a75173bebc
 # ╟─ff2225d1-e07c-4567-a807-fd56fabfa892
+# ╟─10ca1bd9-2335-4156-9c08-34eb3991bece
 # ╟─31895014-64ee-4c6e-9aa2-bcf739466be3
 # ╟─cb74b9c0-0290-41f7-8e3f-dfef72ab8611
 # ╟─f4adb8b3-68f1-412b-8b83-076d1e74902a
 # ╟─8bc5cba8-0615-4e01-9a47-f5115fec34c7
 # ╠═99c7db20-1e46-4233-8e03-4e3176daf314
 # ╠═8d2068bc-efe0-49fa-aa7b-8743440a4bfe
+# ╟─b5b51360-ee5e-4ad7-894f-51b75f56fa51
 # ╟─4cff9f29-b6ba-473c-817f-3e90c1771f62

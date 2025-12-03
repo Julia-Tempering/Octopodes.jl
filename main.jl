@@ -211,7 +211,7 @@ function bf_plot(data, xline = nothing)
 end
 
 
-function mass_histogram(i, data, collapse_observable_bins = false)
+function mass_histogram(i, data)
     result = Float64[] 
     # p(y | M_0) 
     push!(result, data.log_Ni[i]) 
@@ -226,6 +226,21 @@ function mass_histogram(i, data, collapse_observable_bins = false)
     exp_normalize!(result)
     return result
 end
+
+function rebinned_logBF(star_index, data)
+    m = vector_to_matrix(data.q_x_i[:, star_index])
+    _, n_mass_bins = size(m)
+    # P(M_k | M_0^c, y), where k = mass_index
+    mass(mass_index) = sum(m[:, mass_index]) 
+    # log P(M_k, M_0^c, y) or log P(M_k, M_0^c)
+    logjoint(mass_index, prior) = log(1/2) + data.log_Zi[star_index] + (prior ? 0.0 : log(mass(mass_index)))
+    # log(p(y | ∪_{k > 1} M_k))
+    log_bigplanet = logsumexp([logjoint(mass_index, false) for mass_index in 2:n_mass_bins]) - logsumexp([logjoint(mass_index, true) for mass_index in 2:n_mass_bins])
+    # log(p(y | M_0 ∪ M_1))
+    log_null = logsumexp(log(1/2) + data.log_Ni[star_index], logjoint(1, false)) - logsumexp(log(1/2), logjoint(1, true))
+    return log_bigplanet - log_null
+end
+rebinned_logBF(data) = [rebinned_logBF(star_index, data) for star_index in 1:n_systems(data) if !isnan(rebinned_logBF(star_index, data))]
 
 function has_mode(list, i)
     if i == 1 
