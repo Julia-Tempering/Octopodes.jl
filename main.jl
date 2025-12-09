@@ -276,6 +276,102 @@ function fraction_unimodal_mass_histogram(data)
     return n_unimodal/n_stars
 end
 
+function robustness_to_systematics_plots()
+    data = load_data_source(:dat_44k)
+    post_means = Float64[]
+    logbfs = sort(log_BF(data))
+    eps = 0.001
+    deltas = -1.0:0.05:1.0
+    for delta in deltas 
+        processed_log_BF = logbfs .+ delta
+        posterior = semi_hierarchical_pi_posterior_density(eps, processed_log_BF, 1, 1)
+        posterior_mean = numerical_mean(eps, posterior) 
+        push!(post_means, posterior_mean)
+    end
+    posterior_means_plot = let (fig, ax, _) = lines(deltas, post_means)
+            ax.xlabel = "δ (systematic log Bayes factor error)" 
+            ax.ylabel = "E_δ[π]"
+            vlines!(ax, 0.0, linestyle = :dash, color=:black) 
+            fig
+        end
+    perturbed_data_plot = let (fig, ax, _) = lines(logbfs, color = :black)
+        lines!(ax, logbfs .+ deltas[1], linestyle = :dash, color=:grey)
+        lines!(ax, logbfs .+ deltas[end], linestyle = :dash, color=:grey)
+        ax.xlabel = "star indices (ranked by Bayes factor for planet presence)" 
+        ax.ylabel = "log Bayes factor for planet presence"
+        fig
+    end
+    save("notes/posterior_means_plot.png", posterior_means_plot)
+    save("notes/perturbed_data_plot.png", perturbed_data_plot)
+    return (; posterior_means_plot, perturbed_data_plot)
+end
+
+function plot_real_data_posteriors()
+
+    spike_lbf = sort(log_BF(load_data_source(:dat_44k))) 
+    stepping_lbf = sort(log_BF(load_data_source(:real))) 
+
+    local_plot = let (fig, ax, _) = lines(0.0:(1.0/length(spike_lbf)):(1.0-1/length(spike_lbf)), planet_probabilities(spike_lbf), label = "Real data (spike-and-slabs)")
+        lines!(ax, 0.0:(1.0/length(stepping_lbf)):(1.0-1.0/length(stepping_lbf)), planet_probabilities(stepping_lbf), label = "Real data (stepping stone)")
+        ax.xlabel = "fraction of star indices (each ranked by local posterior on planet presence)"
+        ax.ylabel = "local posterior on planet presence" 
+        axislegend(ax, position = :lt)
+        fig
+    end
+    save("notes/real_data_local_posteriors.png", local_plot)
+
+    eps = 0.001
+    posterior_step = semi_hierarchical_pi_posterior_density(eps, stepping_lbf, 1.0, 1.0)
+    posterior_spike = semi_hierarchical_pi_posterior_density(eps, spike_lbf, 1.0, 1.0)
+    posterior_plot = let (fig, ax, _) = lines(eps:eps:(1-eps), posterior_step, label = "Real data (spike-and-slabs)")
+        lines!(ax, eps:eps:(1-eps), posterior_spike, label = "Real data (stepping stone)")
+        ax.xlabel = "π" 
+        ax.ylabel = "semi-hierarchical posterior density"
+        fig
+    end
+    save("notes/real_data_semi_hier_posteriors.png", posterior_plot)
+
+    return (; local_plot)
+end
+
+function synthetic_experiments() 
+    props = [1.0, 0.9, 0.5]
+    synth = [synthetic_experiments(prop) for prop in props]
+
+    data = load_data_source(:dat_44k)
+    real_logbfs = sort(log_BF(data))
+
+    local_plot = let (fig, ax, _) = lines(planet_probabilities(real_logbfs), label = "Real data")
+        for i in eachindex(props)
+            lines!(ax, synth[i].local_prs, label = "Synthetic (π^* = $(props[i]))", linestyle = :dash)
+        end
+        ax.xlabel = "star indices (ranked by local posterior on planet presence)"
+        ax.ylabel = "local posterior on planet presence" 
+        axislegend(ax, position = :lt)
+        fig
+    end
+    save("notes/local_plots.png", local_plot)
+
+    return (; synth, local_plot)
+end
+
+function synthetic_experiments(true_proportion)
+    eps = 0.001
+    logBFs = synthetic_discrete_unid_logBFs(MersenneTwister(11), true_proportion, 42250)
+    posterior = semi_hierarchical_pi_posterior_density(eps, logBFs, 1.0, 1.0)
+
+    posterior_plot = let (fig, ax, _) = lines(eps:eps:(1-eps), posterior)
+        ax.xlabel = "π" 
+        ax.ylabel = "semi-hierarchical posterior density"
+        vlines!(ax, [true_proportion], color=:green, linestyle=:dash)
+        fig
+    end
+
+    save("notes/synthetic_posterior_pi=$true_proportion.png", posterior_plot)
+
+    return (; local_prs = planet_probabilities(sort(logBFs)), posterior_plot)
+end
+
 
 ## Data loading, preprocessing
 
@@ -347,31 +443,6 @@ function find_selected_indices(vector, subset)
 end
 
 low_mass_sum(matrix::Matrix) = sum(matrix[:, 1]) 
-
-# Symmetrize needs to be rewritten: should adjust also log_Ni to achieve p(y | M_0) = p(y | M_1)
-
-# function symmetrize(matrix::Matrix) 
-#     @assert size(matrix) == (6, 5)
-#     new_row = ones(6) * low_mass_sum(matrix) / 6 
-#     matrix[:, 1] = new_row 
-#     return matrix
-# end
-
-# function symmetrize(data)
-#     new_q = similar(data.q_x_i) 
-#     _, n_stars = size(data.q_x_i) 
-#     for star in 1:n_stars 
-#         m = vector_to_matrix(data.q_x_i[:, star]) 
-#         symm = symmetrize(m)
-#         new_q[:, star] = matrix_to_vector(symm)
-#     end 
-#     return (;  
-#         log_Ni = data.log_Ni, 
-#         log_Zi = data.log_Zi,
-#         q_i = data.q_i,
-#         q_x_i = new_q
-#         )
-# end
 
 data_sources() = [:real, :synthetic, :spike_and_slab_nov_7_2025, :dat_44k] 
 

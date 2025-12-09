@@ -1,6 +1,7 @@
 ---
 title: "Exoplanet population models"
-format: pdf
+format: html
+bibliography: refs.bib
 ---
 
 {{< include _macros.qmd >}}
@@ -288,3 +289,13 @@ where $p(\pi)$ is the prior on the shared planet prevalence parameter $\pi$.
 
 The advantage of this approach is that using the machinery from the previous sections, all latent variables except $\pi$ 
 can be marginalized. This means that the posterior can be computed up to numerical precision using numerical integration.
+
+
+
+
+# References
+
+::: {#refs}
+:::
+
+

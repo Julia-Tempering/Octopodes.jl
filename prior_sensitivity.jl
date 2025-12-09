@@ -59,7 +59,7 @@ The sufficient statistics for computing the semi-hierarchical posterior consists
 perturbation_strength = @bind perturbation_strength PlutoUI.Slider(-1.0:0.01:1.0; default = 0.0, show_value = true)
 
 # ╔═╡ fb92bd68-e50e-407c-9767-0a92cbec2703
-perturbation(logBF) = logBF < 1  ? logBF + perturbation_strength : logBF
+perturbation(logBF) = logBF + perturbation_strength # logBF < 1  ? logBF + perturbation_strength : logBF
 
 # ╔═╡ 467d3f9d-cb2c-4acb-9989-2da1111ea579
 @bind subsampling_strength PlutoUI.Slider(-4.0:0.01:0.0)
@@ -79,7 +79,7 @@ beta_prior_alpha = @bind beta_prior_alpha PlutoUI.Slider(0.5:0.01:2.0; default=2
 beta_prior_beta = @bind beta_prior_beta PlutoUI.Slider(0.5:0.01:2.0; default=2.0, show_value=true)
 
 # ╔═╡ 8bc5cba8-0615-4e01-9a47-f5115fec34c7
-eps = 0.01
+eps = 0.001
 
 # ╔═╡ 99c7db20-1e46-4233-8e03-4e3176daf314
 prior = semi_hierarchical_pi_posterior_density(eps, Float64[], beta_prior_alpha, beta_prior_beta)
@@ -130,8 +130,8 @@ processed_log_BF = perturbation.(posterior_annealing*shuffled_log_BF[1:subsampli
 
 # ╔═╡ 7424e650-c1f2-4fb9-b964-ef2ca25397ee
 let (fig, ax, _) = lines(planet_probabilities(sort(processed_log_BF)))
-	ax.xlabel = "star indices (ranked by octofitter posterior on planet presence)"
-	ax.ylabel = "octofitter posterior on planet presence"
+	ax.xlabel = "star indices (ranked by local posterior on planet presence)"
+	ax.ylabel = "local posterior on planet presence"
 	fig
 end
 
@@ -168,11 +168,11 @@ md"""
 # ╟─50a52357-6f34-4b7f-84bf-2197b785a338
 # ╟─a1640c79-2298-445d-ad36-573afa698b9a
 # ╟─f446a929-8b57-4bd2-bce8-62ffbedeb542
-# ╟─6d8b34c6-0eb4-4555-9dcc-26dcea1c35bc
+# ╠═6d8b34c6-0eb4-4555-9dcc-26dcea1c35bc
 # ╟─352b1f8e-ef10-4744-a1de-825a025ead19
-# ╟─f267e40e-4d39-432f-b34e-ff8ed2d9e5c2
+# ╠═f267e40e-4d39-432f-b34e-ff8ed2d9e5c2
 # ╟─89795bd3-6948-4f0d-91f9-fbd0eb6db712
-# ╟─7424e650-c1f2-4fb9-b964-ef2ca25397ee
+# ╠═7424e650-c1f2-4fb9-b964-ef2ca25397ee
 # ╠═39635a89-6cb8-400c-9b38-b37ba7d09a7f
 # ╠═b88d9aad-ee9f-4357-82c6-0a377fe8d83d
 # ╠═bcefd5df-74a1-4233-9b51-e376322e242e
@@ -181,12 +181,12 @@ md"""
 # ╟─467d3f9d-cb2c-4acb-9989-2da1111ea579
 # ╟─4b336540-4d0b-4942-8d64-d2ca5c176142
 # ╠═cc30d78d-9e4e-4e81-855c-16a75173bebc
-# ╟─ff2225d1-e07c-4567-a807-fd56fabfa892
-# ╟─10ca1bd9-2335-4156-9c08-34eb3991bece
+# ╠═ff2225d1-e07c-4567-a807-fd56fabfa892
+# ╠═10ca1bd9-2335-4156-9c08-34eb3991bece
 # ╟─31895014-64ee-4c6e-9aa2-bcf739466be3
 # ╟─cb74b9c0-0290-41f7-8e3f-dfef72ab8611
 # ╟─f4adb8b3-68f1-412b-8b83-076d1e74902a
-# ╟─8bc5cba8-0615-4e01-9a47-f5115fec34c7
+# ╠═8bc5cba8-0615-4e01-9a47-f5115fec34c7
 # ╠═99c7db20-1e46-4233-8e03-4e3176daf314
 # ╠═8d2068bc-efe0-49fa-aa7b-8743440a4bfe
 # ╟─b5b51360-ee5e-4ad7-894f-51b75f56fa51
