@@ -1,0 +1,7 @@
+name = "Octopodes"
+uuid = "335f5bae-8e5a-459f-ab46-87a87aedd443"
+authors = ["Alexandre Bouchard <bouchard@stat.ubc.ca>", "William Thompson <will.thompson@outlook.com>", "Trevor Campbell <trevor@stat.ubc.ca>", "Dori Blakely"]
+version = "0.1.0"
+
+[deps]
+DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
