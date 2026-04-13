@@ -95,14 +95,25 @@ function imh(system_proposals, tilde_psi, tilde_pi, rng)
     max_n_companions = length(tilde_psi) - 1
     n_bins = length(tilde_pi)
 
+    psi_trace = zeros(max_n_companions + 1, n_iters - 1) 
+    pi_trace = zeros(n_bins, n_iters - 1)
+    accept_prs = zeros(n_systems)
+
     for iter in 2:n_iters
+        # psi, pi | rest
         companion_counts, bin_membership_counts = gather_counts(states, max_n_companions, n_bins)
         psi = rand(rng, Dirichlet(1. .+ companion_counts))
         pi = rand(rng, Dirichlet(1. .+ bin_membership_counts)) 
 
-        sample_systems!(states, @view(system_proposals[:, iter]), psi, tilde_psi, pi, tilde_pi, rng)
+        psi_trace[:, iter - 1] = psi 
+        pi_trace[:, iter - 1] = pi
+
+        # planet counts, memberships | rest
+        sample_systems!(states, @view(system_proposals[:, iter]), accept_prs, psi, tilde_psi, pi, tilde_pi, rng)
     end
-    return nothing
+    accept_prs ./= (n_iters - 1)
+    
+    return (; psi_trace, pi_trace, accept_prs)
 end
 
 function test_imh()
@@ -111,8 +122,29 @@ function test_imh()
     tilde_pi = ones(default_binning().n_bins)
     rng = MersenneTwister(1)
 
-    @show @timed imh(system_proposals, tilde_psi, tilde_pi, rng) 
-    @show @timed imh(system_proposals, tilde_psi, tilde_pi, rng)  
+    doit() = imh(system_proposals, tilde_psi, tilde_pi, rng)
+
+    @show @timed(doit()).time
+    @show @timed(doit()).time 
+
+    # result = doit()
+    # lines(sort(result.accept_prs))
+    #=
+
+    Next:
+        - move to a package
+
+        - MCMCChains + InferenceReports integration 
+        - visual check against 
+        
+        - at least a few tests 
+        - data integration / safe passing and checking of priors
+        - code review, add asserts 
+        - send off by EOD today 
+        - report time per update
+        - continue testing campaign
+
+    =#
 end
 
 active_companions(s::SystemSample) = 1:s.n_companions
@@ -124,7 +156,7 @@ accept_pr(current::SystemSample, proposed::SystemSample, psi_to_tilde_psi_ratios
         product_pi(current, pi_to_pi_tilde_ratios)
     )
 
-function sample_systems!(states::AbstractVector{SystemSample}, proposals::AbstractVector{SystemSample}, psi, tilde_psi, pi, tilde_pi, rng)
+function sample_systems!(states::AbstractVector{SystemSample}, proposals::AbstractVector{SystemSample}, accept_prs, psi, tilde_psi, pi, tilde_pi, rng)
     system_indices = eachindex(states)
     @assert system_indices == eachindex(proposals)
     
@@ -133,6 +165,7 @@ function sample_systems!(states::AbstractVector{SystemSample}, proposals::Abstra
 
     for s in system_indices
         pr = accept_pr(states[s], proposals[s], psi_to_tilde_psi_ratios, pi_to_pi_tilde_ratios) 
+        accept_prs[s] += pr
         if rand(rng) < pr 
             states[s] = proposals[s]
         end
