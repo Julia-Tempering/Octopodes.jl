@@ -47,3 +47,9 @@ max_n_companions(::IndependentMCMCRuns{D, max}) where {D, max} = max
 log_P_yr_prior(runs::IndependentMCMCRuns)::Uniform = runs.data["log_P_yr_prior"]
 log_q_prior(runs::IndependentMCMCRuns)::Uniform = runs.data["log_q_prior"]
 
+function n_companions_prior(runs::IndependentMCMCRuns)
+    result = runs.data["n_planets_prior"]::Distribution{Univariate, Discrete}
+    max = max_n_companions(runs)
+    @assert Distributions.support(result) == 0:max 
+    return result
+end

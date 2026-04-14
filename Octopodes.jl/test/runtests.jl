@@ -1,8 +1,10 @@
 import Octopodes: 
             Binning, bin, vector_to_array, companion_indices,
-            IndependentMCMCRuns, max_n_companions, traces
+            IndependentMCMCRuns, max_n_companions, traces, 
+            n_companions_prior
 using   Test,
-        JLD2
+        JLD2,
+        JET
 
 @testset "Octopodes.jl Tests" begin
 
@@ -11,7 +13,7 @@ using   Test,
         runs = IndependentMCMCRuns(dict) 
         @test max_n_companions(runs) == 3 
         @test first(traces(runs)) isa NamedTuple 
-        @inferred traces(runs)
+        @inferred traces(runs) 
 
         b = Binning(runs, n_log_P_yr_intervals = 3, n_log_q_intervals = 2)
         @test b.partition_sizes == (3, 2)
@@ -19,6 +21,11 @@ using   Test,
         @test @inferred companion_indices(runs) == (1, 2, 3)
 
         binned = @inferred bin(b, runs)
+
+        t = traces(runs)[1]
+        comp_indices = companion_indices(runs)
+        @test_opt bin(b, comp_indices, t)
+
         @test isbitstype(eltype(binned))
     end
 
