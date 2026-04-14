@@ -15,6 +15,19 @@ end
 
 """
 $(SIGNATURES)
+
+Use the prior bounds from the independent MCMC runs and a requested number of intervals 
+in each axis to build a binning.
+"""
+Binning(runs::IndependentMCMCRuns; n_log_P_yr_intervals::Int, n_log_q_intervals::Int) =
+    Binning(
+        build_grid(log_P_yr_prior(runs), n_log_P_yr_intervals),
+        build_grid(log_q_prior(runs),    n_log_q_intervals)
+    )
+build_grid(prior::Uniform, n_intervals) = range(prior.a, prior.b, n_intervals + 1)
+
+"""
+$(SIGNATURES)
 """
 function Binning(log_P_yr_grid::StepRangeLen, log_q_grid::StepRangeLen)
     partition_sizes = n_intervals.((log_P_yr_grid, log_q_grid))
@@ -29,7 +42,8 @@ Given a [`Binning`](@ref) and an iterable over reals, provide the index of the
 corresponding bin. 
 """
 function bin(b::Binning, values)
-    @assert eltype(values) <: Real
+    @assert eltype(values) <: Real 
+    @assert length(values) == 2
     interval_indices = interval_index.((b.log_P_yr_grid, b.log_q_grid), values)
     return LinearIndices(b.partition_sizes)[interval_indices...]
 end
@@ -41,7 +55,7 @@ Given a [`Binning`](@ref) and a vector of reals, reshape it into a matrix
 where the rows correspond to blocks in the `log_P_yr` partition, and the columns, 
 to blocks in the `log_q` partition.
 
-To perform the reverse, simply use `vec(matrix)`. 
+To perform the inverse operation, simply use `vec(matrix)`. 
 """
 vector_to_array(b::Binning, vector::Vector) = reshape(vector, b.partition_sizes)
 

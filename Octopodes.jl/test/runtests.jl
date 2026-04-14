@@ -1,7 +1,20 @@
-import Octopodes: Binning, bin, vector_to_array
-using Test
+import Octopodes: 
+            Binning, bin, vector_to_array, 
+            IndependentMCMCRuns, max_n_companions, traces
+using   Test,
+        JLD2
 
 @testset "Octopodes.jl Tests" begin
+
+    @testset "Independent MCMC runs data format" begin
+        dict = JLD2.load("IndependentMCMCRuns_demo.jld2")
+        runs = IndependentMCMCRuns(dict) 
+        @test max_n_companions(runs) == 3 
+        @test first(traces(runs)) isa NamedTuple 
+
+        b = Binning(runs, n_log_P_yr_intervals = 3, n_log_q_intervals = 2)
+        @test b.partition_sizes == (3, 2)
+    end
 
     @testset "Bins" begin
         b = @inferred Binning(
