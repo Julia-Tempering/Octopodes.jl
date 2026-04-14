@@ -10,15 +10,15 @@ function run_imh(rng::AbstractRNG, b::Binning, runs::IndependentMCMCRuns, propos
     @assert runs.log_P_yr_prior isa Uniform 
     @assert runs.log_q_prior isa Uniform 
     # we do not make that assumption the prior on the number of companions 
-    tilde_psi = map(n -> pmf(run.n_companions_prior, n), 0:max_n_companions)
+    tilde_psi = map(n -> pdf(runs.n_companions_prior, n), 0:max_n_comp)
 
-    psi_trace = zeros(max_n_companions + 1, n_iters - 1) 
+    psi_trace = zeros(max_n_comp + 1, n_iters - 1) 
     pi_trace = zeros(n_bins, n_iters - 1)
     accept_prs = zeros(n_systems)
 
     for iter in 2:n_iters
         # psi, pi | rest
-        companion_counts, bin_membership_counts = gather_counts(states, max_n_companions, n_bins)
+        companion_counts, bin_membership_counts = gather_counts(states, max_n_comp, n_bins)
         psi = rand(rng, Dirichlet(1. .+ companion_counts))
         pi = rand(rng, Dirichlet(1. .+ bin_membership_counts)) 
 
@@ -26,7 +26,7 @@ function run_imh(rng::AbstractRNG, b::Binning, runs::IndependentMCMCRuns, propos
         pi_trace[:, iter - 1] = pi
 
         # planet counts, memberships | rest
-        sample_systems!(rng, states, accept_prs, @view(proposals[:, iter]), tilde_psi)
+        sample_systems!(rng, states, accept_prs, @view(proposals[:, iter]), tilde_psi, psi, pi)
     end
 
     return (; psi_trace, pi_trace, accept_prs)
@@ -40,7 +40,7 @@ accept_pr(current::BinnedSample, proposed::BinnedSample, psi_to_tilde_psi_ratios
         product_pi(proposed, pi_to_pi_tilde_ratios) / 
         product_pi(current, pi_to_pi_tilde_ratios)
     )
-function sample_systems!(rng::AbstractRNG, states::AbstractVector{BinnedSample}, accept_prs::AbstractVector, proposals::AbstractVector{BinnedSample}, tilde_psi::AbstractVector)
+function sample_systems!(rng, states, accept_prs, proposals, tilde_psi, psi, pi)
     system_indices = eachindex(states)
     @assert system_indices == eachindex(proposals)
     
@@ -58,7 +58,7 @@ function sample_systems!(rng::AbstractRNG, states::AbstractVector{BinnedSample},
     end
 end
 
-function gather_counts(states::AbstractVector{BinnedSample}, max_n_companions::Int, n_bins::Int)
+function gather_counts(states, max_n_companions::Int, n_bins::Int)
     system_indices = eachindex(states)
     companion_counts = zeros(Int, max_n_companions + 1)
     bin_membership_counts = zeros(Int, n_bins)
