@@ -1,5 +1,5 @@
 import Octopodes: 
-            Binning, bin, vector_to_array, 
+            Binning, bin, vector_to_array, companion_indices,
             IndependentMCMCRuns, max_n_companions, traces
 using   Test,
         JLD2
@@ -14,6 +14,9 @@ using   Test,
 
         b = Binning(runs, n_log_P_yr_intervals = 3, n_log_q_intervals = 2)
         @test b.partition_sizes == (3, 2)
+
+        @test @inferred companion_indices(runs) == (1, 2, 3)
+        binned = @inferred bin(b, runs)
     end
 
     @testset "Bins" begin

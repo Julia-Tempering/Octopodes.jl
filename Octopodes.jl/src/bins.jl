@@ -26,14 +26,67 @@ Binning(runs::IndependentMCMCRuns; n_log_P_yr_intervals::Int, n_log_q_intervals:
     )
 build_grid(prior::Uniform, n_intervals) = range(prior.a, prior.b, n_intervals + 1)
 
-"""
-$(SIGNATURES)
-"""
 function Binning(log_P_yr_grid::StepRangeLen, log_q_grid::StepRangeLen)
     partition_sizes = n_intervals.((log_P_yr_grid, log_q_grid))
     n_bins = prod(partition_sizes)
     return Binning(log_P_yr_grid, log_q_grid, partition_sizes, n_bins)
 end
+
+"""
+$(SIGNATURES)
+
+Perform binning on all the samples. Returns an Array of [`BinnedSample`](@ref).
+Rows are systems, columns are MCMC iterations.
+
+Assume at the moment that all traces have the same number of iterations. 
+"""
+function bin(b::Binning, runs::IndependentMCMCRuns)
+    per_system_vectors = [bin(b, runs, system_trace) for system_trace in traces(runs)]
+    return permutedims(stack(per_system_vectors))
+end
+
+function bin(b::Binning, runs::IndependentMCMCRuns, system_trace::NamedTuple)
+    log_P_yr::Matrix{Float64} = system_trace.log_P_yr
+    log_q::Matrix{Float64} = system_trace.log_q
+    n_planets::Vector{Int64} = system_trace.n_planets 
+    n_samples::Int = system_trace.n_samples
+
+    @assert size(log_P_yr) == size(log_q)
+    @assert size(log_P_yr)[2] == size(log_q)[2] == length(n_planets) == n_samples
+
+    samples = Array{BinnedSample}(undef, n_samples)
+    comp_indices = companion_indices(runs)
+    max_n_companions = length(comp_indices)
+
+    @assert size(log_P_yr)[1] == size(log_q)[1] == max_n_companions
+
+    buffer = zeros(Int, max_n_companions)
+    for iter in 1:n_samples
+        n_companions = n_planets[iter]
+        @assert 0 ≤ n_companions ≤ max_n_companions
+        for c in 1:max_n_companions
+            values = (log_P_yr[c, iter], log_q[c, iter]) 
+            buffer[c] = c ≤ n_companions ? bin(b, values) : 0
+        end
+        bin_memberships = map(i -> buffer[i], comp_indices) 
+        samples[iter] = BinnedSample(n_companions, bin_memberships)
+    end
+    return samples
+end
+
+companion_indices(::IndependentMCMCRuns{D, N}) where {D, N} = tuple(1:N...)
+
+"""
+$(FIELDS)
+"""
+struct BinnedSample{I <: Tuple}
+    n_companions::Int
+
+    """ Contains inactive ones (for type stability) - the inactive ones are set to zero. """
+    bin_memberships::I # this 
+end
+
+
 
 """
 $(SIGNATURES) 
