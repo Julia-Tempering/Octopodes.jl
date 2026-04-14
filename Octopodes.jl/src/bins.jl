@@ -21,8 +21,8 @@ in each axis to build a binning.
 """
 Binning(runs::IndependentMCMCRuns; n_log_P_yr_intervals::Int, n_log_q_intervals::Int) =
     Binning(
-        build_grid(log_P_yr_prior(runs), n_log_P_yr_intervals),
-        build_grid(log_q_prior(runs),    n_log_q_intervals)
+        build_grid(runs.log_P_yr_prior, n_log_P_yr_intervals),
+        build_grid(runs.log_q_prior,    n_log_q_intervals)
     )
 build_grid(prior::Uniform, n_intervals) = range(prior.a, prior.b, n_intervals + 1)
 
@@ -40,13 +40,19 @@ Rows are systems, columns are MCMC iterations.
 
 Assume at the moment that all traces have the same number of iterations. 
 """
-function bin(b::Binning, runs::IndependentMCMCRuns)
-    comp_indices = companion_indices(runs)
-    per_system_vectors = [bin(b, comp_indices, system_trace) for system_trace in traces(runs)]
-    return permutedims(stack(per_system_vectors))
+bin(b::Binning, runs::IndependentMCMCRuns) = bin(b, runs, companion_indices(runs))
+
+function bin(b::Binning, runs::IndependentMCMCRuns, comp_indices::T) where {T <: Tuple}
+    n_systems = length(runs.traces)
+    result = Array{BinnedSample{T}}(undef, n_samples(runs), n_systems)
+    for s in 1:n_systems 
+        output = @view result[:, s]
+        bin!(output, b, comp_indices, runs.traces[s])
+    end
+    return permutedims(result)
 end
 
-function bin(b::Binning, comp_indices::T, system_trace::NamedTuple) where {T <: Tuple}
+function bin!(output, b::Binning, comp_indices::T, system_trace::NamedTuple) where {T <: Tuple}
     log_P_yr::Matrix{Float64} = system_trace.log_P_yr
     log_q::Matrix{Float64} = system_trace.log_q
     n_planets::Vector{Int64} = system_trace.n_planets 
@@ -54,8 +60,6 @@ function bin(b::Binning, comp_indices::T, system_trace::NamedTuple) where {T <: 
 
     @assert size(log_P_yr) == size(log_q)
     @assert size(log_P_yr)[2] == size(log_q)[2] == length(n_planets) == n_samples
-
-    samples = Array{BinnedSample{T}}(undef, n_samples)
     
     max_n_companions = length(comp_indices)
     @assert size(log_P_yr)[1] == size(log_q)[1] == max_n_companions
@@ -69,12 +73,13 @@ function bin(b::Binning, comp_indices::T, system_trace::NamedTuple) where {T <: 
             buffer[c] = c ≤ n_companions ? bin(b, values) : 0
         end
         bin_memberships = map(i -> buffer[i], comp_indices) 
-        samples[iter] = BinnedSample(n_companions, bin_memberships)
+        output[iter] = BinnedSample(n_companions, bin_memberships)
     end
-    return samples
+    return nothing 
 end
 
-companion_indices(::IndependentMCMCRuns{D, N}) where {D, N} = tuple(1:N...)
+companion_indices(runs::IndependentMCMCRuns) = companion_indices(runs.mv)
+companion_indices(::Val{N}) where {N} = tuple(1:N...)
 
 """
 $(FIELDS)
@@ -92,7 +97,7 @@ $(SIGNATURES)
 Given a [`Binning`](@ref) and an iterable over reals, provide the index of the 
 corresponding bin. 
 """
-function bin(b::Binning, values)
+function bin(b::Binning, values) 
     @assert eltype(values) <: Real 
     @assert length(values) == 2
     interval_indices = interval_index.((b.log_P_yr_grid, b.log_q_grid), values)

@@ -1,35 +1,25 @@
-import Octopodes: 
-            Binning, bin, vector_to_array, companion_indices,
-            IndependentMCMCRuns, max_n_companions, traces, 
-            n_companions_prior
-using   Test,
-        JLD2,
-        JET
+include("setup.jl")
 
 @testset "Octopodes.jl Tests" begin
 
-    @testset "Independent MCMC runs data format" begin
-        dict = JLD2.load("IndependentMCMCRuns_demo.jld2")
-        runs = IndependentMCMCRuns(dict) 
+    function test_imh()
+        @test_opt run_imh(rng, b, runs)
+    end
+    @testset "IMH" test_imh()
+
+    function test_run()
         @test max_n_companions(runs) == 3 
-        @test first(traces(runs)) isa NamedTuple 
-        @inferred traces(runs) 
-
-        b = Binning(runs, n_log_P_yr_intervals = 3, n_log_q_intervals = 2)
+        @test first(runs.traces) isa NamedTuple 
         @test b.partition_sizes == (3, 2)
-
         @test @inferred companion_indices(runs) == (1, 2, 3)
+        @test_opt bin(b, runs)
 
         binned = @inferred bin(b, runs)
-
-        t = traces(runs)[1]
-        comp_indices = companion_indices(runs)
-        @test_opt bin(b, comp_indices, t)
-
         @test isbitstype(eltype(binned))
     end
+    @testset "Independent MCMC runs data format" test_run()
 
-    @testset "Bins" begin
+    function test_bin()
         b = @inferred Binning(
             0.0:0.5:1.0, 
             0.0:0.04:0.12,
@@ -42,6 +32,7 @@ using   Test,
 
         @test_throws "Value" bin(b, (0.1, 0.13))
     end
+    @testset "Bins" test_bin()
 
     
 

@@ -1,55 +1,57 @@
 """
-Wrapper around an informal, Dict-based interface to share 
-independent MCMC runs over 
-individual systems. 
+Information needed about the independent MCMC runs for each system in 
+order to run joint inference. 
 
-We assume we can obtain traces for `log_P_yr` and 
-`log_q` parameters (log period in years and log mass-ratio respectively, 
-both in log base 10) for each system.
-
-We also assume we can obtain the prior on `log_P_yr` and 
-`log_q` parameters, shared across all runs.
+$(FIELDS)
 """
-struct IndependentMCMCRuns{D <: Dict, max_n_companions}
-    data::D
-    function IndependentMCMCRuns(d::D) where {D <: Dict} 
-        max_n_companions = max_n_companions_and_validate(d)
-        new{D, max_n_companions}(d)
-    end
-end
-Base.show(io::IO, runs::IndependentMCMCRuns{D, N}) where {D, N} = print(io, "IndependentMCMCRuns(max_n_companions=$N, n_systems=$(length(traces(runs))))")
+struct IndependentMCMCRuns{V <: Vector, P <: Uniform, N, max_n_companions}
+    """
+    A vector of traces, one for each system. 
 
-function max_n_companions_and_validate(d::Dict)::Int
-    system_trace = first(traces(d)) 
-    max_n_companions, n_iters = size(system_trace.log_P_yr)
-    return max_n_companions
+    Each trace is a `NamedTuple` assumed to have the following fields:
+
+    - `n_planets::Vector{Int64}`,
+    - `log_P_yr::Matrix{Float64}`, 
+    - `log_q::Matrix{Float64}`, 
+    - `n_samples::Int64`, 
+    - `name::String`
+
+    """
+    traces::V
+    mv::Val{max_n_companions}
+    log_P_yr_prior::P
+    log_q_prior::P
+    n_companions_prior::N
 end
+Base.show(io::IO, runs::IndependentMCMCRuns) = print(io, "IndependentMCMCRuns(max_n_companions=$(max_n_companions(runs)), n_systems=$(length(runs.traces)))")
 
 """
 $(SIGNATURES)
 
-A vector of traces, one for each system. 
-
-Each trace is a `NamedTuple` assumed to have the following fields:
-
-- `n_planets::Vector{Int64}`,
-- `log_P_yr::Matrix{Float64}`, 
-- `log_q::Matrix{Float64}`, 
-- `n_samples::Int64`, 
-- `name::String`
-
+Load the [`IndependentMCMCRuns`](@ref) data from an informal exchange format defined in `Dict`.
 """
-traces(runs::IndependentMCMCRuns)::Vector{NamedTuple} = traces(runs.data)
-traces(d::Dict) = d["star_data"]
-
-max_n_companions(::IndependentMCMCRuns{D, max}) where {D, max} = max
-
-log_P_yr_prior(runs::IndependentMCMCRuns)::Uniform = runs.data["log_P_yr_prior"]
-log_q_prior(runs::IndependentMCMCRuns)::Uniform = runs.data["log_q_prior"]
-
-function n_companions_prior(runs::IndependentMCMCRuns)
-    result = runs.data["n_planets_prior"]::Distribution{Univariate, Discrete}
-    max = max_n_companions(runs)
-    @assert Distributions.support(result) == 0:max 
-    return result
+function IndependentMCMCRuns(d::D) where {D <: Dict}
+    NT = typeof(first(d["star_data"]))
+    traces = Vector{NT}(d["star_data"])
+    max = max_n_companions(traces)
+    n_companions_prior = d["n_planets_prior"]
+    @assert Distributions.support(n_companions_prior) == 0:max 
+    IndependentMCMCRuns(
+        traces, 
+        Val(max), 
+        d["log_P_yr_prior"],
+        d["log_q_prior"],
+        n_companions_prior
+    )
 end
+
+max_n_companions(r) = max_n_companions_and_samples(r)[1]
+n_samples(r) = max_n_companions_and_samples(r)[2]
+max_n_companions_and_samples(r::IndependentMCMCRuns) = max_n_companions_and_samples(r.traces)
+function max_n_companions_and_samples(traces::Vector)
+    system_trace = first(traces) 
+    return size(system_trace.log_P_yr)
+end
+
+max_n_companions(runs::IndependentMCMCRuns) = get(runs.mv)
+get(::Val{x}) where {x} = x
