@@ -41,11 +41,12 @@ Rows are systems, columns are MCMC iterations.
 Assume at the moment that all traces have the same number of iterations. 
 """
 function bin(b::Binning, runs::IndependentMCMCRuns)
-    per_system_vectors = [bin(b, runs, system_trace) for system_trace in traces(runs)]
+    comp_indices = companion_indices(runs)
+    per_system_vectors = [bin(b, comp_indices, system_trace) for system_trace in traces(runs)]
     return permutedims(stack(per_system_vectors))
 end
 
-function bin(b::Binning, runs::IndependentMCMCRuns, system_trace::NamedTuple)
+function bin(b::Binning, comp_indices::T, system_trace::NamedTuple) where {T <: Tuple}
     log_P_yr::Matrix{Float64} = system_trace.log_P_yr
     log_q::Matrix{Float64} = system_trace.log_q
     n_planets::Vector{Int64} = system_trace.n_planets 
@@ -54,10 +55,9 @@ function bin(b::Binning, runs::IndependentMCMCRuns, system_trace::NamedTuple)
     @assert size(log_P_yr) == size(log_q)
     @assert size(log_P_yr)[2] == size(log_q)[2] == length(n_planets) == n_samples
 
-    samples = Array{BinnedSample}(undef, n_samples)
-    comp_indices = companion_indices(runs)
+    samples = Array{BinnedSample{T}}(undef, n_samples)
+    
     max_n_companions = length(comp_indices)
-
     @assert size(log_P_yr)[1] == size(log_q)[1] == max_n_companions
 
     buffer = zeros(Int, max_n_companions)
@@ -79,14 +79,12 @@ companion_indices(::IndependentMCMCRuns{D, N}) where {D, N} = tuple(1:N...)
 """
 $(FIELDS)
 """
-struct BinnedSample{I <: Tuple}
+struct BinnedSample{T <: Tuple}
     n_companions::Int
 
     """ Contains inactive ones (for type stability) - the inactive ones are set to zero. """
-    bin_memberships::I # this 
+    bin_memberships::T 
 end
-
-
 
 """
 $(SIGNATURES) 

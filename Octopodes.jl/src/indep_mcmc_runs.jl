@@ -30,7 +30,7 @@ $(SIGNATURES)
 
 A vector of traces, one for each system. 
 
-Each trace is assumed to have the following fields:
+Each trace is a `NamedTuple` assumed to have the following fields:
 
 - `n_planets::Vector{Int64}`,
 - `log_P_yr::Matrix{Float64}`, 
@@ -39,7 +39,7 @@ Each trace is assumed to have the following fields:
 - `name::String`
 
 """
-traces(runs::IndependentMCMCRuns) = traces(runs.data)
+traces(runs::IndependentMCMCRuns)::Vector{NamedTuple} = traces(runs.data)
 traces(d::Dict) = d["star_data"]
 
 max_n_companions(::IndependentMCMCRuns{D, max}) where {D, max} = max

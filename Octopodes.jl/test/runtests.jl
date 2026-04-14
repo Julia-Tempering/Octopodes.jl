@@ -11,12 +11,15 @@ using   Test,
         runs = IndependentMCMCRuns(dict) 
         @test max_n_companions(runs) == 3 
         @test first(traces(runs)) isa NamedTuple 
+        @inferred traces(runs)
 
         b = Binning(runs, n_log_P_yr_intervals = 3, n_log_q_intervals = 2)
         @test b.partition_sizes == (3, 2)
 
         @test @inferred companion_indices(runs) == (1, 2, 3)
+
         binned = @inferred bin(b, runs)
+        @test isbitstype(eltype(binned))
     end
 
     @testset "Bins" begin
