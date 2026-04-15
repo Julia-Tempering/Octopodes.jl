@@ -1,7 +1,7 @@
 using Octopodes
 import Octopodes: 
             Binning, bin, vector_to_array, companion_indices,
-            IndepRuns, max_n_companions, run_imh
+            IndepRuns, max_n_companions, run_imh, binarize
 
 using   Test,
         JLD2, 

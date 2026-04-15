@@ -27,3 +27,8 @@ end
     binned = bin(b, runs; star_selector = ==("HIP100017"))
     @test binned.star_names == ["HIP100017"]
 end
+
+@testset "Binarize" begin 
+    binned = bin(b, runs)
+    @test_opt binarize(binned)
+end
