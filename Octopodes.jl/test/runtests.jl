@@ -4,8 +4,7 @@ include("setup.jl")
 
     function test_imh()
         @test_opt run_imh(rng, b, runs)
-        result = @inferred run_imh(rng, b, runs)
-        
+        @inferred run_imh(rng, b, runs)
     end
     @testset "IMH" test_imh()
 

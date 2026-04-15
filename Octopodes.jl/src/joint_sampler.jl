@@ -28,6 +28,7 @@ function run_imh(rng::AbstractRNG, b::Binning, runs::IndependentMCMCRuns, propos
         # planet counts, memberships | rest
         sample_systems!(rng, states, accept_prs, @view(proposals[:, iter]), tilde_psi, psi, pi)
     end
+    accept_prs ./= (n_iters - 1)
 
     return (; psi_trace, pi_trace, accept_prs)
 end
