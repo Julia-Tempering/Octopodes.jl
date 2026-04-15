@@ -1,5 +1,3 @@
-using JET # JET currently breaks with Revise, so only use it here, not in setup.jl !
-
 include("setup.jl")
 
 test_dir = @__DIR__ 

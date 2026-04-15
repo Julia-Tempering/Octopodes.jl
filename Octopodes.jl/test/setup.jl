@@ -5,7 +5,8 @@ import Octopodes:
 
 using   Test,
         JLD2, 
-        Random
+        Random,
+        JET
         
 const rng = MersenneTwister(1)
         
