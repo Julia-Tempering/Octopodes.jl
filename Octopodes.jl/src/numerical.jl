@@ -1,9 +1,21 @@
-# TODO: might need to change signature a bit to make sure the AD works properly
-function numerical(local_companionship_posteriors::Vector{T}, tilde_psi::Vector, psi_prior::Distribution, eps = 0.001) where {T}
+
+
+numerical(binned::BinnedIndepRuns, eps) = 
+    numerical(
+        local_companionship_posteriors(binned), 
+        binned.tilde_psi, 
+        Uniform(0.0, 1.0), 
+        eps,
+        Float64
+    )
+
+local_companionship_posteriors(binned::BinnedIndepRuns) = vec(mean(sample -> sample.n_companions, binned.samples, dims = 2))
+
+function numerical(local_companionship_posteriors::Vector, tilde_psi::Vector, psi_prior::Distribution, eps::Real, ::Type{T}) where {T}
     @assert eps > 0 
     @assert all(0 .<= local_companionship_posteriors .<= 1) 
-    @assert length(tilde_psi) == 2 && sum(tilde_psi) ≈ 1 
-    @assert iscontinuous(psi_prior) && minimum(psi_prior) == 0 && maximum(psi_prior) == 1
+    @assert length(tilde_psi) == 2 && sum(tilde_psi) ≈ 1 "Incorrect tilde_psi: $tilde_psi"
+    @assert Distributions.value_support(typeof(psi_prior)) == Distributions.Continuous && minimum(psi_prior) == 0 && maximum(psi_prior) == 1
 
     log_tilde_psi_ratio = log(tilde_psi[1]) - log(tilde_psi[2]) 
     to_logBF(local_companionship_posterior) =  
@@ -26,10 +38,7 @@ function numerical(local_companionship_posteriors::Vector{T}, tilde_psi::Vector,
         result[posterior_discretization_index] = sum
     end
     exp_normalize!(result)
-    result = result*length(pis)
-    @assert sum(result) * eps ≈ 1 
-        
-    return result
+    return result*(length(grid)+1) # Turn the PMF into a density
 end
 
 """
@@ -49,3 +58,14 @@ binarize(s::BinnedSample) = BinnedSample{Tuple{Int64}}(s.n_companions, (s.n_comp
 collapse(grid::StepRangeLen) = range(minimum(grid), maximum(grid), 2)
 collapse(b::Binning) = Binning(collapse(b.log_P_yr_grid), collapse(b.log_q_grid), (1, 1), 1)
 
+function exp_normalize!(log_weights)
+    m = maximum(log_weights)
+    log_weights .= exp.(log_weights .- m) 
+    return m + log(normalize!(log_weights))
+end 
+
+function normalize!(weights) 
+    s = sum(weights)
+    weights .= weights ./ s 
+    return s
+end
