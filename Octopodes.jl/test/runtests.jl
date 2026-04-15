@@ -3,8 +3,10 @@ include("setup.jl")
 @testset "Octopodes.jl Tests" begin
 
     function test_imh()
-        @test_opt run_imh(rng, b, runs)
-        @inferred run_imh(rng, b, runs)
+        binned = bin(b, runs)
+
+        @test_opt run_imh(rng, binned)
+        @inferred run_imh(rng, binned)
     end
     @testset "IMH" test_imh()
 
@@ -16,7 +18,7 @@ include("setup.jl")
         @test_opt bin(b, runs)
 
         binned = @inferred bin(b, runs)
-        @test isbitstype(eltype(binned))
+        @test isbitstype(eltype(binned.samples))
     end
     @testset "Independent MCMC runs data format" test_run()
 
@@ -35,6 +37,11 @@ include("setup.jl")
     end
     @testset "Bins" test_bin()
 
-    
+     
+    function test_selection()
+        binned = bin(b, runs; star_selector = ==("HIP100017"))
+        @test binned.star_names == ["HIP100017"]
+    end
+    @testset "Selection" test_selection()
 
 end

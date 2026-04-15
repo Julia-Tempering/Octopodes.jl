@@ -1,17 +1,11 @@
-
-
-function run_imh(rng::AbstractRNG, b::Binning, runs::IndependentMCMCRuns, proposals = bin(b, runs)) 
+function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns) 
+    proposals = binned.samples
     n_systems, n_iters = size(proposals)
     states = copy(proposals[:, 1])
-    max_n_comp = max_n_companions(runs)
-    n_bins = b.n_bins
-
-    # for now, we skip computing tilde_psi since it is uniform so cancel each other in accept ratio
-    @assert runs.log_P_yr_prior isa Uniform 
-    @assert runs.log_q_prior isa Uniform 
-    # we do not make that assumption the prior on the number of companions 
-    tilde_psi = map(n -> pdf(runs.n_companions_prior, n), 0:max_n_comp)
-
+    max_n_comp = binned.max_n_companions
+    n_bins = binned.binning.n_bins 
+    tilde_psi = binned.tilde_psi
+    
     psi_trace = zeros(max_n_comp + 1, n_iters - 1) 
     pi_trace = zeros(n_bins, n_iters - 1)
     accept_prs = zeros(n_systems)

@@ -8,6 +8,6 @@ include("indep_mcmc_runs.jl")
 include("bins.jl")
 include("joint_sampler.jl")
 
-export IndependentMCMCRuns, Binning
+export IndepRuns, Binning, bin
 
 end

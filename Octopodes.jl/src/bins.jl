@@ -19,7 +19,7 @@ $(SIGNATURES)
 Use the prior bounds from the independent MCMC runs and a requested number of intervals 
 in each axis to build a binning.
 """
-Binning(runs::IndependentMCMCRuns; n_log_P_yr_intervals::Int, n_log_q_intervals::Int) =
+Binning(runs::IndepRuns; n_log_P_yr_intervals::Int, n_log_q_intervals::Int) =
     Binning(
         build_grid(runs.log_P_yr_prior, n_log_P_yr_intervals),
         build_grid(runs.log_q_prior,    n_log_q_intervals)
@@ -33,6 +33,21 @@ function Binning(log_P_yr_grid::StepRangeLen, log_q_grid::StepRangeLen)
 end
 
 """
+Binned version of independent MCMC runs. 
+
+$(FIELDS)
+"""
+struct BinnedIndepRuns{B <: Binning, M <: Matrix, V}
+    binning::B
+
+    """ Dims: (system index, MCMC iteration). """
+    samples::M
+    tilde_psi::V
+    max_n_companions::Int
+    star_names::Vector{String}
+end
+
+"""
 $(SIGNATURES)
 
 Perform binning on all the samples. Returns an Array of [`BinnedSample`](@ref).
@@ -40,19 +55,34 @@ Rows are systems, columns are MCMC iterations.
 
 Assume at the moment that all traces have the same number of iterations. 
 """
-bin(b::Binning, runs::IndependentMCMCRuns) = bin(b, runs, companion_indices(runs))
+function bin(b::Binning, runs::IndepRuns; star_selector = (star_name::String -> true)) 
+    # for now, we skip computing tilde_psi since it is uniform so cancel each other in accept ratio
+    @assert runs.log_P_yr_prior isa Uniform 
+    @assert runs.log_q_prior isa Uniform 
+    # we do not make that assumption the prior on the number of companions 
+    max_comp = max_n_companions(runs)
+    tilde_psi = map(n -> pdf(runs.n_companions_prior, n), 0:max_comp)
 
-function bin(b::Binning, runs::IndependentMCMCRuns, comp_indices::T) where {T <: Tuple}
-    n_systems = length(runs.traces)
-    result = Array{BinnedSample{T}}(undef, n_samples(runs), n_systems)
-    for s in 1:n_systems 
-        output = @view result[:, s]
-        bin!(output, b, comp_indices, runs.traces[s])
-    end
-    return permutedims(result)
+    samples, star_names = _bin(b, runs, companion_indices(runs), star_selector)
+    return BinnedIndepRuns(b, samples, tilde_psi, max_comp, star_names)
 end
 
-function bin!(output, b::Binning, comp_indices::T, system_trace::NamedTuple) where {T <: Tuple}
+function _bin(b::Binning, runs::IndepRuns, comp_indices::T, star_selector) where {T <: Tuple}
+    n_systems = length(runs.traces)
+    samples = Array{BinnedSample{T}}(undef, n_samples(runs), n_systems)
+    star_names = String[]
+    for s in 1:n_systems 
+        star_name = runs.traces[s].name
+        if star_selector(star_name)
+            output = @view samples[:, s]
+            _bin!(output, b, comp_indices, runs.traces[s])
+            push!(star_names, star_name)
+        end
+    end
+    return permutedims(samples), star_names
+end
+
+function _bin!(output, b::Binning, comp_indices::T, system_trace::NamedTuple) where {T <: Tuple}
     log_P_yr::Matrix{Float64} = system_trace.log_P_yr
     log_q::Matrix{Float64} = system_trace.log_q
     n_planets::Vector{Int64} = system_trace.n_planets 
@@ -78,7 +108,7 @@ function bin!(output, b::Binning, comp_indices::T, system_trace::NamedTuple) whe
     return nothing 
 end
 
-companion_indices(runs::IndependentMCMCRuns) = companion_indices(runs.mv)
+companion_indices(runs::IndepRuns) = companion_indices(runs.mv)
 companion_indices(::Val{N}) where {N} = tuple(1:N...)
 
 """
