@@ -6,7 +6,11 @@ authors = ["Alexandre Bouchard <bouchard@stat.ubc.ca>", "William Thompson <will.
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
+JLD2 = "0.6.4"
 Random = "1.11.0"
+Test = "1.11.0"

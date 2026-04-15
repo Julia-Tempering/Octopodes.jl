@@ -31,3 +31,13 @@ function numerical(local_companionship_posteriors::Vector{T}, tilde_psi::Vector,
         
     return result
 end
+
+# TODO: add specific region subsetting
+function binarize(binned::BinnedIndepRuns)
+    
+
+end
+
+collapse(grid::StepRangeLen) = range(minimum(grid), maximum(grid), 2)
+collapse(b::Binning) = Binning(collapse(b.log_P_yr), collapse(b.log_q_grid), (1, 1), 1)
+

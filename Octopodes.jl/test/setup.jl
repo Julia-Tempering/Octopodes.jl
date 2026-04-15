@@ -1,12 +1,3 @@
-#=
-To run, use 
-```
-include("test/setup.jl")
-```
-=#
-
-using Revise
-
 using Octopodes
 import Octopodes: 
             Binning, bin, vector_to_array, companion_indices,
@@ -14,10 +5,8 @@ import Octopodes:
 
 using   Test,
         JLD2, 
-        JET,
         Random
         
-
 const rng = MersenneTwister(1)
         
 const dict = JLD2.load(joinpath(@__DIR__, "IndepRuns_demo.jld2"))
