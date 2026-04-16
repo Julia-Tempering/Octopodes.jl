@@ -4,14 +4,14 @@ import Octopodes:
             IndepRuns, max_n_companions, run_imh, binarize
 
 using   Test,
-        JLD2, 
         Random,
         CairoMakie,
+        JLD2,
         JET
         
-const rng = MersenneTwister(1)
+const rng = Xoshiro(1)
         
-const dict = JLD2.load(joinpath(@__DIR__, "IndepRuns_demo.jld2"))
+const dict = Octopodes.Examples.small_runs_dict()
 const runs = IndepRuns(dict) 
 const b = Binning(runs, n_log_P_yr_intervals = 3, n_log_q_intervals = 2)
 

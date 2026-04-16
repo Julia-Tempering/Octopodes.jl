@@ -36,13 +36,15 @@ function IndepRuns(d::D) where {D <: Dict}
     max = max_n_companions(traces)
     n_companions_prior = d["n_planets_prior"]
     @assert Distributions.support(n_companions_prior) == 0:max 
-    IndepRuns(
+    result = IndepRuns(
         traces, 
         Val(max), 
         d["log_P_yr_prior"],
         d["log_q_prior"],
         n_companions_prior
     )
+    @assert allunique(stars(result))
+    return result
 end
 
 function stars(runs::IndepRuns)

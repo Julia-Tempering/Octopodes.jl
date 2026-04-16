@@ -13,6 +13,8 @@ include("indep_mcmc_runs.jl")
 include("bins.jl")
 include("joint_sampler.jl")
 include("numerical.jl")
+include("synthetic.jl")
+include("examples.jl")
 
 export IndepRuns, Binning, bin
 

@@ -1,5 +1,6 @@
-
-
+"""
+$(SIGNATURES)
+"""
 function numerical(binned::BinnedIndepRuns, eps = 0.001) 
     @assert is_binary(binned)
     return numerical(
