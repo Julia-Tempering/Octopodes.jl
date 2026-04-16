@@ -1,20 +1,24 @@
 
 
-numerical(binned::BinnedIndepRuns, eps) = 
-    numerical(
+function numerical(binned::BinnedIndepRuns, eps = 0.001) 
+    @assert is_binary(binned)
+    return numerical(
         local_companionship_posteriors(binned), 
         binned.tilde_psi, 
         Uniform(0.0, 1.0), 
         eps,
         Float64
     )
+end
+
+is_binary(binned::BinnedIndepRuns) = binned.max_n_companions == 1 && binned.binning.n_bins == 1
 
 local_companionship_posteriors(binned::BinnedIndepRuns) = vec(mean(sample -> sample.n_companions, binned.samples, dims = 2))
 
 function numerical(local_companionship_posteriors::Vector, tilde_psi::Vector, psi_prior::Distribution, eps::Real, ::Type{T}) where {T}
     @assert eps > 0 
     @assert all(0 .<= local_companionship_posteriors .<= 1) 
-    @assert length(tilde_psi) == 2 && sum(tilde_psi) ≈ 1 "Incorrect tilde_psi: $tilde_psi"
+    @assert length(tilde_psi) == 2 && sum(tilde_psi) ≈ 1 
     @assert Distributions.value_support(typeof(psi_prior)) == Distributions.Continuous && minimum(psi_prior) == 0 && maximum(psi_prior) == 1
 
     log_tilde_psi_ratio = log(tilde_psi[1]) - log(tilde_psi[2]) 
@@ -41,6 +45,7 @@ function numerical(local_companionship_posteriors::Vector, tilde_psi::Vector, ps
     return result*(length(grid)+1) # Turn the PMF into a density
 end
 
+
 """
 Produce a coarser binning based on the indicator function of whether there is 
 at least one planet (irrespective of its position).
@@ -53,19 +58,46 @@ function binarize(binned::BinnedIndepRuns)
     return BinnedIndepRuns(b, samples, tilde_psi, 1, binned.star_names)
 end
 
-binarize(s::BinnedSample) = BinnedSample{Tuple{Int64}}(s.n_companions, (s.n_companions,))
+function binarize(s::BinnedSample)
+    has_companion = s.n_companions > 0 ? 1 : 0
+    return BinnedSample{Tuple{Int64}}(has_companion, (has_companion,))
+end
 
 collapse(grid::StepRangeLen) = range(minimum(grid), maximum(grid), 2)
 collapse(b::Binning) = Binning(collapse(b.log_P_yr_grid), collapse(b.log_q_grid), (1, 1), 1)
 
-function exp_normalize!(log_weights)
-    m = maximum(log_weights)
-    log_weights .= exp.(log_weights .- m) 
-    return m + log(normalize!(log_weights))
-end 
 
-function normalize!(weights) 
-    s = sum(weights)
-    weights .= weights ./ s 
-    return s
+function compare_numerical_imh(rng, binned) 
+    true_posterior = numerical(binned)
+    num_cdf_xs, num_cdf_ys = discrete_pdf_to_cdf(true_posterior) 
+
+    imh_results = run_imh(rng, binned)
+    companion_presence_probability_samples = vec(imh_results.psi_trace[2, :])
+    imh_cdf_xs, imh_cdf_ys = samples_to_cdf(companion_presence_probability_samples)
+
+    ks_dist = ks_distance(num_cdf_xs, num_cdf_ys, imh_cdf_xs, imh_cdf_ys) 
+    ks_p = ks_p_value(ks_dist, length(companion_presence_probability_samples)) 
+
+    return (; 
+        true_posterior, 
+        true_cdf = (num_cdf_xs, num_cdf_ys), 
+        imh_results,
+        samples_ecdf = (imh_cdf_xs, imh_cdf_ys),
+        ks_distance = ks_dist,
+        ks_p_value = ks_p
+    )
+end
+
+function compare_numerical_imh_plot(compare_numerical_imh_results)
+    (num_cdf_xs, num_cdf_ys) = compare_numerical_imh_results.true_cdf 
+    (imh_cdf_xs, imh_cdf_ys) = compare_numerical_imh_results.samples_ecdf
+
+    fig, ax = Makie.lines(num_cdf_xs, num_cdf_ys; label = "True CDF")
+    Makie.lines!(ax, imh_cdf_xs, imh_cdf_ys; label = "IMH ECDF")
+
+    ax.xlabel = L"\psi_{>0}"
+    ax.ylabel = L"P(>\psi_{>0})"
+    Makie.axislegend(ax, position = :lt)
+
+    return fig
 end
