@@ -26,7 +26,7 @@ Here is an example:
 
 ```@example dict
 using Octopodes
-dict = Octopodes.Examples.small_runs_dict()
+dict = Octopodes.Examples.small_dict()
 ```
 
 If the `Dict` contains other keys it is not a problem. 

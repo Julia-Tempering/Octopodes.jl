@@ -5,3 +5,14 @@ dat-44k.jls
 dat.jls
 exoplanet_populations.html
 notes/exoplanet_populations_files
+notes/results_files
+Manifest.toml
+Octopodes.jl/docs/build
+Octopodes.jl/docs/node_modules
+package-lock.json
+package.json
+Octopodes.jl/docs/src/generated
+docs/build
+docs/node_modules
+docs/src/generated
+IndepRuns_big.jld2

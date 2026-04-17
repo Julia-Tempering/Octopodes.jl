@@ -17,8 +17,11 @@ function build(for_preview::Bool = false)
     mkpath(generated)
 
     Literate.markdown(
-        "$work_dir/README.jl", "$work_dir/src/generated"; 
+        "$work_dir/README.jl", generated; 
         flavor = Literate.DocumenterFlavor())
+    mv("$generated/README.md", "$work_dir/src/index.md", force=true)
+    
+    cp("$work_dir/src/index.md", "README.md", force=true)
 
     makedocs_args_for_preview = for_preview ? 
         (; clean = false) :
@@ -39,7 +42,7 @@ function build(for_preview::Bool = false)
             )
         ,
         pages=[
-            "Overview" => "generated/README.md",
+            "Overview" => "index.md",
             "Input" => "input.md",
             "Reference" => "reference.md",
         ],

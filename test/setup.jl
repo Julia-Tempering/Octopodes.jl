@@ -11,7 +11,7 @@ using   Test,
         
 const rng = Xoshiro(1)
         
-const dict = Octopodes.Examples.small_runs_dict()
+const dict = Octopodes.Examples.small_dict()
 const runs = IndepRuns(dict) 
 const b = Binning(runs, n_log_P_yr_intervals = 3, n_log_q_intervals = 2)
 
