@@ -10,7 +10,11 @@ using Literate
 
 function build(for_preview::Bool = false)
 
-    mkpath("$work_dir/src/generated")
+    generated = "$work_dir/src/generated"
+    if isdir(generated)
+        rm(generated; recursive=true)
+    end
+    mkpath(generated)
 
     Literate.markdown(
         "$work_dir/README.jl", "$work_dir/src/generated"; 
@@ -20,7 +24,7 @@ function build(for_preview::Bool = false)
         (; clean = false) :
         (;)
 
-    repo = "TBD"
+    repo = "github.com/Julia-Tempering/Octopodes"
 
     makedocs(;
         modules = [Octopodes], 
@@ -41,6 +45,17 @@ function build(for_preview::Bool = false)
         ],
         makedocs_args_for_preview...
     )
+
+    if !for_preview 
+        DocumenterVitepress.deploydocs(;
+            repo,
+            devbranch = "main",
+            push_preview = true
+        )
+    end
+
+    # since it is generated, try to avoid leaving it around, someone could edit it and then lose their changes
+    rm("$work_dir/src/index.md")
 end
 
 function clean_gensyms(str)
