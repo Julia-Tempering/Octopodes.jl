@@ -11,7 +11,8 @@ dict = Octopodes.Examples.small_dict()
 runs = IndepRuns(dict)
 b = Binning(runs, n_log_P_yr_intervals = 20, n_log_q_intervals = 20)
 binned = bin(b, runs)
-Octopodes.run_imh(Xoshiro(1), binned)
+result = Octopodes.run_imh(Xoshiro(1), binned);
+typeof(result)
 
 # ## How to generate/preview doc
 
