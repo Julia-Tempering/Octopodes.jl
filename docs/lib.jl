@@ -28,7 +28,7 @@ function build(for_preview::Bool = false)
         (; clean = false) :
         (;)
 
-    repo = "github.com/Julia-Tempering/Octopodes"
+    repo = "github.com/Julia-Tempering/Octopodes.jl"
 
     makedocs(;
         modules = [Octopodes], 
