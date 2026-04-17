@@ -80,7 +80,7 @@ function bin(
 end
 
 function _bin(b::Binning, runs::IndepRuns, comp_indices::T, star_selector, thinning::Int, shuffle_rng) where {T <: Tuple}
-    @assert 1 ≤ thinning
+    @assert thinning ≥ 1
     n_systems = length(runs.traces)
     original_n_samples = n_samples(runs)
     thinned_indices = 1:thinning:original_n_samples

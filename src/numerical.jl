@@ -68,12 +68,14 @@ collapse(grid::StepRangeLen) = range(minimum(grid), maximum(grid), 2)
 collapse(b::Binning) = Binning(collapse(b.log_P_yr_grid), collapse(b.log_q_grid), (1, 1), 1)
 
 
-function compare_numerical_imh(rng, binned) 
+function compare_numerical_imh(rng, binned; thinning = 10, burn_fraction = 0.5) 
     true_posterior = numerical(binned)
     num_cdf_xs, num_cdf_ys = discrete_pdf_to_cdf(true_posterior) 
 
     imh_results = run_imh(rng, binned)
-    companion_presence_probability_samples = vec(imh_results.psi_trace[2, :])
+    _, n_iters = size(imh_results.psi_trace)
+    first = ceil(Int, n_iters * burn_fraction)
+    companion_presence_probability_samples = vec(imh_results.psi_trace[2, first:thinning:n_iters])
     imh_cdf_xs, imh_cdf_ys = samples_to_cdf(companion_presence_probability_samples)
 
     ks_dist = ks_distance(num_cdf_xs, num_cdf_ys, imh_cdf_xs, imh_cdf_ys) 
