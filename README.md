@@ -1,6 +1,3 @@
-```@meta
-EditURL = "../../README.jl"
-```
 
 # `Octopodes.jl` － Joint exoplanet modelling
 

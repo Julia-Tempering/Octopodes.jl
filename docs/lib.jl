@@ -1,5 +1,8 @@
 work_dir = @__DIR__ 
 
+parent_path, _ = splitdir(work_dir)
+@assert parent_path == abspath(pwd()) "Run doc preview/build with pwd() at the root of the repo"
+
 using Pkg 
 Pkg.activate(work_dir)
 
@@ -21,7 +24,10 @@ function build(for_preview::Bool = false)
         flavor = Literate.DocumenterFlavor())
     mv("$generated/README.md", "$work_dir/src/index.md", force=true)
     
-    cp("$work_dir/src/index.md", "README.md", force=true)
+    if !for_preview
+        cp("$work_dir/src/index.md", "README.md", force=true)
+        clean_header!("README.md")
+    end
 
     makedocs_args_for_preview = for_preview ? 
         (; clean = false) :
@@ -63,4 +69,10 @@ end
 
 function clean_gensyms(str)
     replace(str, r"var\"##\d+\"\." => "")
+end
+
+function clean_header!(path::String)
+    content = read(path, String)
+    regex = r"```@meta.*?```\n?"s 
+    write(path, replace(content, regex => ""))
 end
