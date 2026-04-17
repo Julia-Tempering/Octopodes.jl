@@ -7,7 +7,7 @@ end
 
 
 @testset "Agreement with numerical" begin
-    binned = binarize(bin(b, runs))
+    binned = binarize(bin(b, runs, thinning = 10))
     compare_numerical_imh_results = 
         Octopodes.compare_numerical_imh(Xoshiro(1), binned)
     @test compare_numerical_imh_results.ks_p_value > 0.01

@@ -15,5 +15,5 @@ const dict = Octopodes.Examples.small_dict()
 const runs = IndepRuns(dict) 
 const b = Binning(runs, n_log_P_yr_intervals = 3, n_log_q_intervals = 2)
 
-const big_run = IndepRuns(JLD2.load(joinpath(@__DIR__, "IndepRuns_big.jld2")))
-const big_b =  Binning(big_run, n_log_P_yr_intervals = 20, n_log_q_intervals = 20)
+# const big_run = IndepRuns(JLD2.load(joinpath(@__DIR__, "IndepRuns_big.jld2")))
+# const big_b =  Binning(big_run, n_log_P_yr_intervals = 20, n_log_q_intervals = 20)
