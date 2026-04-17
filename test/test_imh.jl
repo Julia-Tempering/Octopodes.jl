@@ -15,11 +15,11 @@ end
     # TODO: add compare_numerical_imh_plot(compare_numerical_imh_results) to documentation 
 end
 
-big_thinned = Octopodes.binarize(bin(big_b, big_run; thinning = 10, shuffle_rng = nothing)) # Xoshiro(1)))
+# big_thinned = Octopodes.binarize(bin(big_b, big_run; thinning = 10, shuffle_rng = nothing)) # Xoshiro(1)))
 
-compare_numerical_imh_results = 
-        Octopodes.compare_numerical_imh(Xoshiro(1), big_thinned)
+# compare_numerical_imh_results = 
+#         Octopodes.compare_numerical_imh(Xoshiro(1), big_thinned)
 
-@show compare_numerical_imh_results.ks_p_value
+# @show compare_numerical_imh_results.ks_p_value
 
-Octopodes.compare_numerical_imh_plot(compare_numerical_imh_results)
+# Octopodes.compare_numerical_imh_plot(compare_numerical_imh_results)
