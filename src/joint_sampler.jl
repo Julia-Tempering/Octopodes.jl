@@ -47,7 +47,7 @@ function sample_systems!(rng, states, accept_prs, proposals, tilde_psi, psi, pi)
     for s in system_indices
         pr = accept_pr(states[s], proposals[s], psi_to_tilde_psi_ratios, pi_to_pi_tilde_ratios) 
         accept_prs[s] += pr
-        if rand(rng) < pr 
+        if rand(rng) < pr
             states[s] = proposals[s]
         end
     end

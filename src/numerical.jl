@@ -68,7 +68,11 @@ collapse(grid::StepRangeLen) = range(minimum(grid), maximum(grid), 2)
 collapse(b::Binning) = Binning(collapse(b.log_P_yr_grid), collapse(b.log_q_grid), (1, 1), 1)
 
 
-function compare_numerical_imh(rng, binned; thinning = 10, burn_fraction = 0.5) 
+
+function compare_numerical_imh(rng, binned; 
+        # The KS test assumes iid samples, so we need thin+burn-in
+        thinning = 5, 
+        burn_fraction = 0.5) 
     true_posterior = numerical(binned)
     num_cdf_xs, num_cdf_ys = discrete_pdf_to_cdf(true_posterior) 
 

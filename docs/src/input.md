@@ -95,17 +95,15 @@ First, create a binning by choosing how many grid points for the mass-ratio and 
 b = Binning(runs, n_log_P_yr_intervals = 20, n_log_q_intervals = 20)
 ```
 
-Then use [`bin`](@ref) to perform the binning. You can select star subsets, 
-thin the MCMC chains, and shuffle them at the same time. See [`bin`](@ref) 
+Then use [`bin`](@ref) to perform the binning. You can select star subsets using 
+the `star_selector` option.
+The `bin` function also shuffle the samples. See [`bin`](@ref) 
 for details. 
 
 ```@example dict
 using Random
 
-binned = bin(b, runs; 
-    star_selector = (x -> startswith(x, "HIP")),
-    thinning = 2, 
-    shuffle_rng = Xoshiro(1))
+binned = bin(b, runs; star_selector = (x -> startswith(x, "HIP")))
 ```
 
 ## Binarizing

@@ -53,19 +53,14 @@ $(SIGNATURES)
 Perform binning on all the samples. Returns an Array of [`BinnedSample`](@ref).
 Rows are systems, columns are MCMC iterations.
 
-Thinning of `k`` refers to using only one every `k` MCMC samples. 
+By default, this also shuffle each system independently. Set `shuffle_rng`
+with the `AbstractRNG` object to change the seed, set to `nothing` to skip shuffling. 
 
-You can also shuffle each system independently. Provide a `shuffle_rng`
-with the `AbstractRNG` object, set to `nothing` to skip shuffling. 
-
-If both shuffling and thinning are requested, thinning is one first, then shuffling after. 
-
-Assume at the moment that all traces have the same number of iterations. 
+Assume that all traces have the same number of iterations. 
 """
 function bin(
         b::Binning, runs::IndepRuns; 
         star_selector = (star_name::String -> true), 
-        thinning::Int = 1, 
         shuffle_rng::Union{Nothing, AbstractRNG} = Xoshiro(1)
         ) 
     # for now, we skip computing tilde_psi since it is uniform so cancel each other in accept ratio
@@ -75,23 +70,19 @@ function bin(
     max_comp = max_n_companions(runs)
     tilde_psi = map(n -> pdf(runs.n_companions_prior, n), 0:max_comp)
 
-    samples, star_names = _bin(b, runs, companion_indices(runs), star_selector, thinning, shuffle_rng)
+    samples, star_names = _bin(b, runs, companion_indices(runs), star_selector, shuffle_rng)
     return BinnedIndepRuns(b, samples, tilde_psi, max_comp, star_names)
 end
 
-function _bin(b::Binning, runs::IndepRuns, comp_indices::T, star_selector, thinning::Int, shuffle_rng) where {T <: Tuple}
-    @assert thinning ≥ 1
+function _bin(b::Binning, runs::IndepRuns, comp_indices::T, star_selector, shuffle_rng) where {T <: Tuple}
     n_systems = length(runs.traces)
-    original_n_samples = n_samples(runs)
-    thinned_indices = 1:thinning:original_n_samples
-    n_samples_after_thinning = length(thinned_indices)
-    samples = Array{BinnedSample{T}}(undef, n_samples_after_thinning, n_systems)
+    samples = Array{BinnedSample{T}}(undef, n_samples(runs), n_systems)
     star_names = String[]
     for s in 1:n_systems 
         star_name = runs.traces[s].name
         if star_selector(star_name)
             output = @view samples[:, s]
-            _bin!(output, b, comp_indices, runs.traces[s], thinned_indices, shuffle_rng)
+            _bin!(output, b, comp_indices, runs.traces[s], shuffle_rng)
             push!(star_names, star_name)
         end
     end
@@ -101,16 +92,16 @@ end
 shuffle_if_needed(::Nothing, indices) = indices 
 shuffle_if_needed(rng::AbstractRNG, indices) = shuffle(rng, indices) 
 
-function _bin!(output, b::Binning, comp_indices::T, system_trace::NamedTuple, thinned_indices, shuffle_rng) where {T <: Tuple}
-    thinned_indices = shuffle_if_needed(shuffle_rng, thinned_indices)
-    log_P_yr::Matrix{Float64} = @view system_trace.log_P_yr[:, thinned_indices]
-    log_q::Matrix{Float64} = @view system_trace.log_q[:, thinned_indices]
-    n_planets::Vector{Int64} = @view system_trace.n_planets[thinned_indices] 
+function _bin!(output, b::Binning, comp_indices::T, system_trace::NamedTuple, shuffle_rng) where {T <: Tuple}
     n_samples::Int = length(output)
-
+    shuffled_indices = shuffle_if_needed(shuffle_rng, 1:n_samples)
+    log_P_yr::Matrix{Float64} = @view system_trace.log_P_yr[:, shuffled_indices]
+    log_q::Matrix{Float64} = @view system_trace.log_q[:, shuffled_indices]
+    n_planets::Vector{Int64} = @view system_trace.n_planets[shuffled_indices] 
+    
     @assert size(log_P_yr) == size(log_q)
     @assert size(log_P_yr)[2] == size(log_q)[2] == length(n_planets) == n_samples
-    @assert length(thinned_indices) == n_samples
+    @assert length(shuffled_indices) == n_samples
     
     max_n_companions = length(comp_indices)
     @assert size(log_P_yr)[1] == size(log_q)[1] == max_n_companions
