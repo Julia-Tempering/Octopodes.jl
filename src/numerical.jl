@@ -12,6 +12,21 @@ function numerical(binned::BinnedIndepRuns, eps = 0.001)
     )
 end
 
+function sensitivity(binned::BinnedIndepRuns, eps)
+    lcp = local_companionship_posteriors(binned)
+    prior(mu) = Beta(mu, 1 - mu) 
+    posterior(mu::T) where {T} = numerical_mean(eps,
+            numerical(
+                lcp,
+                binned.tilde_psi,
+                prior(mu), 
+                eps, 
+                T
+            )
+        )
+    return ForwardDiff.derivative(posterior, 0.5)
+end
+
 is_binary(binned::BinnedIndepRuns) = binned.max_n_companions == 1 && binned.binning.n_bins == 1
 
 local_companionship_posteriors(binned::BinnedIndepRuns) = vec(mean(sample -> sample.n_companions, binned.samples, dims = 2))
@@ -46,8 +61,19 @@ function numerical(local_companionship_posteriors::Vector, tilde_psi::Vector, ps
     return result*(length(grid)+1) # Turn the PMF into a density
 end
 
+function numerical_mean(eps::Real, posterior::Vector{T}) where {T}
+    psis = eps:eps:(1.0-eps) 
+    sum = zero(T)
+    for posterior_discretization_index in eachindex(posterior)
+        sum += eps * psis[posterior_discretization_index] * posterior[posterior_discretization_index]
+    end
+    return sum
+end
+
 
 """
+$SIGNATURES
+
 Produce a coarser binning based on the indicator function of whether there is 
 at least one planet (irrespective of its position).
 """
@@ -66,7 +92,6 @@ end
 
 collapse(grid::StepRangeLen) = range(minimum(grid), maximum(grid), 2)
 collapse(b::Binning) = Binning(collapse(b.log_P_yr_grid), collapse(b.log_q_grid), (1, 1), 1)
-
 
 
 function compare_numerical_imh(rng, binned; 

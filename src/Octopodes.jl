@@ -7,6 +7,7 @@ using   Distributions,
         Random
 
 import LogExpFunctions: logsumexp
+import ForwardDiff
 
 include("utils.jl")
 include("indep_mcmc_runs.jl")
