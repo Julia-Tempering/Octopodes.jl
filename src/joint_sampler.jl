@@ -1,7 +1,10 @@
-function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns) 
+"""
+$SIGNATURES
+"""
+function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, processor = (processor_context -> nothing)) 
     proposals = binned.samples
     n_systems, n_iters = size(proposals)
-    states = copy(proposals[:, 1])
+    states = copy(proposals[:, 1]) # iter 1: initialize with first system trace proposal
     max_n_comp = binned.max_n_companions
     n_bins = binned.binning.n_bins 
     tilde_psi = binned.tilde_psi
@@ -12,15 +15,19 @@ function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns)
 
     for iter in 2:n_iters
         # psi, pi | rest
-        companion_counts, bin_membership_counts = gather_counts(states, max_n_comp, n_bins)
-        psi = rand(rng, Dirichlet(1. .+ companion_counts))
+        total_companion_counts, bin_membership_counts = gather_counts(states, max_n_comp, n_bins)
+        psi = rand(rng, Dirichlet(1. .+ total_companion_counts))
         pi = rand(rng, Dirichlet(1. .+ bin_membership_counts)) 
-
-        psi_trace[:, iter - 1] = psi 
-        pi_trace[:, iter - 1] = pi
 
         # planet counts, memberships | rest
         sample_systems!(rng, states, accept_prs, @view(proposals[:, iter]), tilde_psi, psi, pi)
+
+        # collect samples
+        psi_trace[:, iter - 1] = psi 
+        pi_trace[:, iter - 1] = pi
+
+        processor_context = (; iter, psi, pi, states, total_companion_counts, bin_membership_counts)
+        processor(processor_context)
     end
     accept_prs ./= (n_iters - 1)
 
@@ -55,16 +62,16 @@ end
 
 function gather_counts(states, max_n_companions::Int, n_bins::Int)
     system_indices = eachindex(states)
-    companion_counts = zeros(Int, max_n_companions + 1)
+    total_companion_counts = zeros(Int, max_n_companions + 1)
     bin_membership_counts = zeros(Int, n_bins)
 
     for s in system_indices
         state = states[s]
         n_comp = state.n_companions 
-        companion_counts[n_comp + 1] += 1 
+        total_companion_counts[n_comp + 1] += 1 
         for c in 1:n_comp 
             bin_membership_counts[state.bin_memberships[c]] += 1
         end
     end
-    return companion_counts, bin_membership_counts
+    return total_companion_counts, bin_membership_counts
 end
