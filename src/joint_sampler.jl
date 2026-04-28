@@ -22,11 +22,11 @@ function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, hyperprior::Distribu
         psi = rand(rng, Dirichlet(1. .+ total_companion_counts))
         pi = rand(rng, Dirichlet(alpha .+ bin_membership_counts)) 
 
+        # alpha | rest
+        alpha = sample_alpha(rng, alpha, pi, hyperprior, bin_membership_counts)
+
         # planet counts, memberships | rest
         sample_systems!(rng, states, accept_prs, @view(proposals[:, iter]), tilde_psi, psi, pi)
-
-        # alpha | rest
-        alpha = sample_alpha(rng, alpha, pi, hyperprior)
 
         # collect samples
         psi_trace[:, iter - 1] = psi 
@@ -58,13 +58,17 @@ function sample_systems!(rng, states, accept_prs, proposals, tilde_psi, psi, pi)
     # Assuming a uniform prior here (instead would be `pi ./ tilde_pi`)
     pi_to_pi_tilde_ratios = pi * length(pi)
 
+	accepts = Vector{Bool}(undef, length(system_indices))
     for s in system_indices
         pr = accept_pr(states[s], proposals[s], psi_to_tilde_psi_ratios, pi_to_pi_tilde_ratios) 
         accept_prs[s] += pr
+        accepts[s] = false
         if rand(rng) < pr
             states[s] = proposals[s]
+            accepts[s] = true
         end
     end
+    return accepts
 end
 
 function gather_counts(states, max_n_companions::Int, n_bins::Int)
@@ -83,7 +87,7 @@ function gather_counts(states, max_n_companions::Int, n_bins::Int)
     return total_companion_counts, bin_membership_counts
 end
 
-function sample_alpha(rng, alpha, pi, hyperprior)
+function sample_alpha(rng, alpha, pi, hyperprior, bin_membership_counts)
 	# initial logprob computation with current alpha
 	lp = logpdf(hyperprior, alpha) + logpdf(Dirichlet(alpha .+ bin_membership_counts), pi)
 	# sweep over a few reasonable scales with random walk MH
