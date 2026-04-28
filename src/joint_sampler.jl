@@ -1,37 +1,44 @@
 """
 $SIGNATURES
 """
-function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, processor = (processor_context -> nothing)) 
+function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, hyperprior::Distribution = Dirac(1.0), nprocessor = (processor_context -> nothing)) 
     proposals = binned.samples
     n_systems, n_iters = size(proposals)
     states = copy(proposals[:, 1]) # iter 1: initialize with first system trace proposal
     max_n_comp = binned.max_n_companions
     n_bins = binned.binning.n_bins 
     tilde_psi = binned.tilde_psi
+    @assert minimum(hyperprior) >= 0
+    alpha = rand(rng, hyperprior)
     
     psi_trace = zeros(max_n_comp + 1, n_iters - 1) 
     pi_trace = zeros(n_bins, n_iters - 1)
+    alpha_trace = zeros(n_iters - 1)
     accept_prs = zeros(n_systems)
 
     for iter in 2:n_iters
         # psi, pi | rest
         total_companion_counts, bin_membership_counts = gather_counts(states, max_n_comp, n_bins)
         psi = rand(rng, Dirichlet(1. .+ total_companion_counts))
-        pi = rand(rng, Dirichlet(1. .+ bin_membership_counts)) 
+        pi = rand(rng, Dirichlet(alpha .+ bin_membership_counts)) 
 
         # planet counts, memberships | rest
         sample_systems!(rng, states, accept_prs, @view(proposals[:, iter]), tilde_psi, psi, pi)
 
+        # alpha | rest
+        alpha = sample_alpha(rng, alpha, pi, hyperprior)
+
         # collect samples
         psi_trace[:, iter - 1] = psi 
         pi_trace[:, iter - 1] = pi
+        alpha_trace[:, iter - 1] = alpha
 
-        processor_context = (; iter, psi, pi, states, total_companion_counts, bin_membership_counts)
+        processor_context = (; iter, psi, pi, alpha, states, total_companion_counts, bin_membership_counts)
         processor(processor_context)
     end
     accept_prs ./= (n_iters - 1)
 
-    return (; psi_trace, pi_trace, accept_prs)
+    return (; psi_trace, pi_trace, alpha_trace, accept_prs)
 end
 
 active_companions(s::BinnedSample) = 1:s.n_companions
@@ -74,4 +81,19 @@ function gather_counts(states, max_n_companions::Int, n_bins::Int)
         end
     end
     return total_companion_counts, bin_membership_counts
+end
+
+function sample_alpha(rng, alpha, pi, hyperprior)
+	# initial logprob computation with current alpha
+	lp = logpdf(hyperprior, alpha) + logpdf(Dirichlet(alpha .+ bin_membership_counts), pi)
+	# sweep over a few reasonable scales with random walk MH
+    for s in -3:2
+    	alphap = alpha + 10.0^s * randn(rng)
+    	lpp = logpdf(hyperprior, alphap) + logpdf(Dirichlet(alphap .+ bin_membership_counts), pi)
+    	if log(rand(rng)) <= lpp - lp
+    		alpha = alphap
+    		lp = lpp
+    	end
+    end
+    return alpha
 end
