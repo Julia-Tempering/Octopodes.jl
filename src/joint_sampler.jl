@@ -1,7 +1,7 @@
 """
 $SIGNATURES
 """
-function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, hyperprior::Distribution = Dirac(1.0), nprocessor = (processor_context -> nothing)) 
+function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, hyperprior::Distribution = Dirac(1.0), processor = (processor_context -> nothing)) 
     proposals = binned.samples
     n_systems, n_iters = size(proposals)
     states = copy(proposals[:, 1]) # iter 1: initialize with first system trace proposal
