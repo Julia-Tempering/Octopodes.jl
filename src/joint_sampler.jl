@@ -62,17 +62,13 @@ function sample_systems!(rng, states, accept_prs, proposals, tilde_psi, psi, pi)
     # Assuming a uniform prior here (instead would be `pi ./ tilde_pi`)
     pi_to_pi_tilde_ratios = pi * length(pi)
 
-	accepts = Vector{Bool}(undef, length(system_indices))
     for s in system_indices
         pr = accept_pr(states[s], proposals[s], psi_to_tilde_psi_ratios, pi_to_pi_tilde_ratios) 
         accept_prs[s] += pr
-        accepts[s] = false
         if rand(rng) < pr
             states[s] = proposals[s]
-            accepts[s] = true
         end
     end
-    return accepts
 end
 
 function gather_counts(states, max_n_companions::Int, n_bins::Int)
