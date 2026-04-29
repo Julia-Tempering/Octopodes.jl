@@ -2,7 +2,7 @@
 $SIGNATURES
 """
 function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, n_levels::Int=1, hyperprior = (level -> Dirac(level^2)), processor = (processor_context -> nothing)) 
-	@assert iszero(binned.binning.partition_sizes % 2^(n_levels-1)) "The number of bins in each dimension must be divisible by 2^(n_levels-1)"
+	@assert all(iszero.(binned.binning.partition_sizes .% 2^(n_levels-1))) "The number of bins in each dimension must be divisible by 2^(n_levels-1)"
     proposals = binned.samples
     n_systems, n_iters = size(proposals)
     states = copy(proposals[:, 1]) # iter 1: initialize with first system trace proposal
@@ -89,8 +89,11 @@ end
 
 function logp_alpha(alpha, pi_vecs, hyperprior, bin_count_vecs)
 	lp = logpdf(hyperprior, alpha)
+	if isinf(lp)
+		return lp
+	end
 	for i in 1:length(pi_vecs)
-		lp += logpdf(Dirichlet(alpha .+ bin_count_vecs[i], pi_vecs[i]))
+		lp += logpdf(Dirichlet(alpha .+ bin_count_vecs[i]), pi_vecs[i])
 	end
 	return lp
 end
@@ -113,7 +116,7 @@ end
 
 
 function sample_pi_alpha!(rng, alphas, level, bin_counts, hyperprior)
-	vec_bin_counts = vec(bin_membership_counts)
+	vec_bin_counts = vec(bin_counts)
 	if level == 1
 		# if at the first level, just do a single flat dirichlet draw, and sample alpha based on that one dirichlet draw
 		vecpi = rand(rng, Dirichlet(alphas[level] .+ vec_bin_counts))
@@ -122,8 +125,7 @@ function sample_pi_alpha!(rng, alphas, level, bin_counts, hyperprior)
 	else
 		# compute the bin membership counts for the level above
 		# make sure that the bin counts grid is divisible by 2 to coarsen it
-		@assert iszero(size(bin_counts,1) % 2)
-		@assert iszero(size(bin_counts,2) % 2)
+		@assert all(iszero.(size(bin_counts) .% 2))
 		bin_counts_above = zero(size(bin_counts) .÷ 2)
 		for i in 1:size(bin_counts,1)
 			for j in 1:size(bin_counts,2)
