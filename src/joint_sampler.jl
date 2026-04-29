@@ -17,7 +17,7 @@ function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, n_levels::Int=1, hyp
     
     psi_trace = zeros(max_n_comp + 1, n_iters - 1) 
     pi_trace = zeros(n_bins, n_iters - 1)
-    alpha_trace = zeros(n_iters - 1)
+    alpha_trace = zeros(length(alphas), n_iters - 1)
     accept_prs = zeros(n_systems)
 
     for iter in 2:n_iters
@@ -35,9 +35,9 @@ function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, n_levels::Int=1, hyp
         # collect samples
         psi_trace[:, iter - 1] = psi 
         pi_trace[:, iter - 1] = pi
-        alpha_trace[:, iter - 1] = alpha
+        alpha_trace[:, iter - 1] = alphas
 
-        processor_context = (; iter, psi, pi, alpha, states, total_companion_counts, bin_membership_counts)
+        processor_context = (; iter, psi, pi, alphas, states, total_companion_counts, bin_membership_counts)
         processor(processor_context)
     end
     accept_prs ./= (n_iters - 1)
