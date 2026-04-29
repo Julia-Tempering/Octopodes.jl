@@ -2,6 +2,7 @@
 $SIGNATURES
 """
 function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, n_levels::Int=1, hyperprior = (level -> Dirac(level^2)), processor = (processor_context -> nothing)) 
+	@assert iszero(binned.binning.partition_sizes % 2^(n_levels-1)) "The number of bins in each dimension must be divisible by 2^(n_levels-1)"
     proposals = binned.samples
     n_systems, n_iters = size(proposals)
     states = copy(proposals[:, 1]) # iter 1: initialize with first system trace proposal
