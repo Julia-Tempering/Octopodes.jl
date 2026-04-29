@@ -1,15 +1,18 @@
 """
 $SIGNATURES
 """
-function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, hyperprior::Distribution = Dirac(1.0), processor = (processor_context -> nothing)) 
+function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, n_levels::Int=1, hyperprior = (level -> Dirac(level^2)), processor = (processor_context -> nothing)) 
     proposals = binned.samples
     n_systems, n_iters = size(proposals)
     states = copy(proposals[:, 1]) # iter 1: initialize with first system trace proposal
     max_n_comp = binned.max_n_companions
     n_bins = binned.binning.n_bins 
     tilde_psi = binned.tilde_psi
-    @assert minimum(hyperprior) >= 0
-    alpha = rand(rng, hyperprior)
+	alphas = zeros(n_levels)
+	for n in 1:n_levels
+		@assert minimum(hyperprior(n)) >= 0
+		alphas[n] = rand(rng, hyperprior(n))
+	end
     
     psi_trace = zeros(max_n_comp + 1, n_iters - 1) 
     pi_trace = zeros(n_bins, n_iters - 1)
@@ -17,13 +20,13 @@ function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, hyperprior::Distribu
     accept_prs = zeros(n_systems)
 
     for iter in 2:n_iters
-        # psi, pi | rest
+        # psi | rest
         total_companion_counts, bin_membership_counts = gather_counts(states, max_n_comp, n_bins)
         psi = rand(rng, Dirichlet(1. .+ total_companion_counts))
-        pi = rand(rng, Dirichlet(alpha .+ bin_membership_counts)) 
 
-        # alpha | rest
-        alpha = sample_alpha(rng, alpha, pi, hyperprior, bin_membership_counts)
+        # pi, alpha | rest, recursive
+        # note: alpha resampling happens inside this function, no return alpha needed
+		pi = sample_pi_alpha!(rng, alphas, n_levels, vector_to_array(binned.binning, bin_membership_counts), hyperprior)
 
         # planet counts, memberships | rest
         sample_systems!(rng, states, accept_prs, @view(proposals[:, iter]), tilde_psi, psi, pi)
@@ -87,17 +90,72 @@ function gather_counts(states, max_n_companions::Int, n_bins::Int)
     return total_companion_counts, bin_membership_counts
 end
 
-function sample_alpha(rng, alpha, pi, hyperprior, bin_membership_counts)
+function logp_alpha(alpha, pi_vecs, hyperprior, bin_count_vecs)
+	lp = logpdf(hyperprior, alpha)
+	for i in 1:length(pi_vecs)
+		lp += logpdf(Dirichlet(alpha .+ bin_count_vecs[i], pi_vecs[i]))
+	end
+	return lp
+end
+
+function sample_alpha(rng, alpha, pi_vecs, hyperprior, bin_count_vecs)
 	# initial logprob computation with current alpha
-	lp = logpdf(hyperprior, alpha) + logpdf(Dirichlet(alpha .+ bin_membership_counts), pi)
+	lp = logp_alpha(alpha, pi_vecs, hyperprior, bin_count_vecs)
 	# sweep over a few reasonable scales with random walk MH
     for s in -3:2
     	alphap = alpha + 10.0^s * randn(rng)
-    	lpp = logpdf(hyperprior, alphap) + logpdf(Dirichlet(alphap .+ bin_membership_counts), pi)
+		lpp = logp_alpha(alphap, pi_vecs, hyperprior, bin_count_vecs)
     	if log(rand(rng)) <= lpp - lp
     		alpha = alphap
     		lp = lpp
     	end
     end
     return alpha
+end
+
+
+function sample_pi_alpha!(rng, alphas, level, bin_counts, hyperprior)
+	vec_bin_counts = vec(bin_membership_counts)
+	if level == 1
+		vecpi = rand(rng, Dirichlet(alphas[level] .+ vec_bin_counts))
+		alphas[level] = sample_alpha(rng, alphas[level], [vecpi], hyperprior(level), [vec_bin_counts])
+		return vecpi
+	else
+		# compute the bin membership counts for the level above
+		# make sure that the bin counts grid is divisible by 2 to coarsen it
+		@assert iszero(size(bin_counts,1) % 2)
+		@assert iszero(size(bin_counts,2) % 2)
+		bin_counts_above = zero(size(bin_counts) .÷ 2)
+		for i in 1:size(bin_counts,1)
+			for j in 1:size(bin_counts,2)
+				iabove = (i+1) ÷ 2
+				jabove = (j+1) ÷ 2	
+				bin_counts_above[iabove, jabove] += bin_counts[i,j]
+			end
+		end
+		# draw the pi from one level up, as well as alpha 
+		pi_above = reshape(sample_pi_alpha!(rng, alphas, level-1, bin_counts_above, hyperprior), size(bin_counts_above))
+		# sample this level's pi and alpha
+		# due to the properties of the dirichlet, we can sample the current pi and adjust within quadrants
+		pi = reshape(rand(rng, Dirichlet(alphas[level] .+ vec_bin_counts)), size(bin_counts))
+		pi_quad_vecs = []
+		count_quad_vecs = []
+		for i in 1:2:size(bin_counts,1)
+			for j in 1:2:size(bin_counts,2)
+				# normalize each quadrant
+				s = sum(pi[i:i+1,j:j+1])
+				pi[i:i+1,j:j+1] ./= s
+				# store each quadrant separately for sampling alpha (need a copy for pi since about to overwrite)
+				push!(pi_quad_vecs, copy(vec(pi[i:i+1,j:j+1])))
+				push!(count_quad_vecs, vec(bin_counts[i:i+1,j:j+1]))
+				# rescale pi for this layer based on higher level
+				pi[i:i+1,j:j+1] .*= pi_above[(i+1)÷2, (j+1)÷2]
+			end
+		end
+		# after all of this, pi should sum to 1 at each level
+		@assert abs(sum(pi) - 1) < 1e-6
+		# resample alpha
+		alphas[level] = sample_alpha(rng, alphas[level], pi_quad_vecs, hyperprior, count_quad_vecs)
+		return vec(pi)
+	end
 end
