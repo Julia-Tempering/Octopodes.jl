@@ -127,9 +127,7 @@ function sample_pi_alpha!(rng, alphas, level, bin_counts, hyperprior)
 		bin_counts_above = zero(size(bin_counts) .÷ 2)
 		for i in 1:size(bin_counts,1)
 			for j in 1:size(bin_counts,2)
-				iabove = (i+1) ÷ 2
-				jabove = (j+1) ÷ 2	
-				bin_counts_above[iabove, jabove] += bin_counts[i,j]
+				bin_counts_above[(i+1)÷2,(j+1)÷2] += bin_counts[i,j]
 			end
 		end
 		# draw the pi and alpha from one level up
