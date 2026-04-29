@@ -99,6 +99,7 @@ function logp_alpha(alpha, pi_vecs, hyperprior, bin_count_vecs)
 end
 
 function sample_alpha(rng, alpha, pi_vecs, hyperprior, bin_count_vecs)
+	@assert length(pi_vecs) == length(bin_count_vecs)
 	# initial logprob computation with current alpha
 	lp = logp_alpha(alpha, pi_vecs, hyperprior, bin_count_vecs)
 	# sweep over a few reasonable scales with random walk MH
@@ -117,6 +118,7 @@ end
 function sample_pi_alpha!(rng, alphas, level, bin_counts, hyperprior)
 	vec_bin_counts = vec(bin_membership_counts)
 	if level == 1
+		# if at the first level, just do a single flat dirichlet draw, and sample alpha based on that one dirichlet draw
 		vecpi = rand(rng, Dirichlet(alphas[level] .+ vec_bin_counts))
 		alphas[level] = sample_alpha(rng, alphas[level], [vecpi], hyperprior(level), [vec_bin_counts])
 		return vecpi
@@ -133,18 +135,17 @@ function sample_pi_alpha!(rng, alphas, level, bin_counts, hyperprior)
 				bin_counts_above[iabove, jabove] += bin_counts[i,j]
 			end
 		end
-		# draw the pi from one level up, as well as alpha 
+		# draw the pi and alpha from one level up
 		pi_above = reshape(sample_pi_alpha!(rng, alphas, level-1, bin_counts_above, hyperprior), size(bin_counts_above))
 		# sample this level's pi and alpha
-		# due to the properties of the dirichlet, we can sample the current pi and adjust within quadrants
+		# due to the properties of the dirichlet, we can sample the current pi all at once and adjust within quartet blocks
 		pi = reshape(rand(rng, Dirichlet(alphas[level] .+ vec_bin_counts)), size(bin_counts))
 		pi_quad_vecs = []
 		count_quad_vecs = []
 		for i in 1:2:size(bin_counts,1)
 			for j in 1:2:size(bin_counts,2)
 				# normalize each quadrant
-				s = sum(pi[i:i+1,j:j+1])
-				pi[i:i+1,j:j+1] ./= s
+				pi[i:i+1,j:j+1] ./= sum(pi[i:i+1,j:j+1])
 				# store each quadrant separately for sampling alpha (need a copy for pi since about to overwrite)
 				push!(pi_quad_vecs, copy(vec(pi[i:i+1,j:j+1])))
 				push!(count_quad_vecs, vec(bin_counts[i:i+1,j:j+1]))
