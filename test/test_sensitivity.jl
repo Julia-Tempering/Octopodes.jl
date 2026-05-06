@@ -31,6 +31,6 @@ end
 end
 
 @testset "Sensitivities" begin   
-    @show Octopodes.sensitivities(bin(b, runs), 0.001) 
-    @test_opt Octopodes.sensitivities(bin(b, runs), 0.001)
+    @show Octopodes.relative_sensitivities(bin(b, runs), 0.001) 
+    @test_opt Octopodes.relative_sensitivities(bin(b, runs), 0.001)
 end

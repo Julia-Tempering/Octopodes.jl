@@ -22,7 +22,7 @@ function sensitivity(binned::BinnedIndepRuns, eps)
                 T
             )
         )
-    return ForwardDiff.derivative(posterior, 0.5)
+    return posterior(0.5), ForwardDiff.derivative(posterior, 0.5)
 end
 
 """
@@ -30,10 +30,15 @@ $(SIGNATURES)
 
 For each bin, binarize with respect to that bin using 
 [`binarize`](@ref), and compute [`sensitivity`](@ref) for that bin.
-Return a vector of sensivities, one for each bin.
+Return a vector of relative sensivities, one for each bin.
+
+Relative absolute relative_sensitivities are obtained by 
+dividing by the primal value and taking abs values.
 """
-sensitivities(binned::BinnedIndepRuns, eps) = 
+relative_sensitivities(binned::BinnedIndepRuns, eps) =
     map(1:binned.binning.n_bins) do k 
         binarized = binarize(binned, k) 
-        return sensitivity(binarized, eps)
+        value, deriv = sensitivity(binarized, eps)
+        return abs(deriv / value)
     end
+
