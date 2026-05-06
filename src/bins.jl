@@ -63,10 +63,11 @@ function bin(
         star_selector = (star_name::String -> true), 
         shuffle_rng::Union{Nothing, AbstractRNG} = Xoshiro(1)
         ) 
-    # for now, we skip computing tilde_psi since it is uniform so cancel each other in accept ratio
+    # we assume Uniform priors at a couple of places in the code (search for "NOTE: Assuming a uniform prior")
     @assert runs.log_P_yr_prior isa Uniform 
     @assert runs.log_q_prior isa Uniform 
-    # we do not make that assumption on the prior on the number of companions 
+
+    # on the other hand, we do not make that assumption on the prior on the number of companions 
     max_comp = max_n_companions(runs)
     tilde_psi = map(n -> pdf(runs.n_companions_prior, n), 0:max_comp)
 
@@ -136,7 +137,7 @@ end
 """
 $(SIGNATURES) 
 
-Given a [`Binning`](@ref) and an iterable over reals, provide the index of the 
+Given a [`Binning`](@ref) and an iterable over two reals, provide the index of the 
 corresponding bin. 
 """
 function bin(b::Binning, values) 
@@ -144,6 +145,19 @@ function bin(b::Binning, values)
     @assert length(values) == 2
     interval_indices = interval_index.((b.log_P_yr_grid, b.log_q_grid), values)
     return LinearIndices(b.partition_sizes)[interval_indices...]
+end
+
+"""
+$(SIGNATURES) 
+
+Given a bin index, return the interval of period and mass corresponding to it. 
+Encode it as a new [`Binning`](@ref) object.
+"""
+function intervals_from_bin_index(b::Binning, k::Int)
+    i, j = Tuple(CartesianIndices(b.partition_sizes)[k])
+    log_P_yr_grid = range(b.log_P_yr_grid[i], b.log_P_yr_grid[i+1], length=2)
+    log_q_grid    = range(b.log_q_grid[j],    b.log_q_grid[j+1],    length=2)
+    return Binning(log_P_yr_grid, log_q_grid)
 end
 
 """

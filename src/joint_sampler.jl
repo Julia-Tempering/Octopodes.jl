@@ -48,7 +48,7 @@ function sample_systems!(rng, states, accept_prs, proposals, tilde_psi, psi, pi)
     
     psi_to_tilde_psi_ratios = psi ./ tilde_psi 
 
-    # Assuming a uniform prior here (instead would be `pi ./ tilde_pi`)
+    # NOTE: Assuming a uniform prior here (instead would be `pi ./ tilde_pi`)
     pi_to_pi_tilde_ratios = pi * length(pi)
 
     for s in system_indices

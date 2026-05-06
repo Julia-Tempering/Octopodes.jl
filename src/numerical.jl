@@ -1,35 +1,36 @@
 """
 $(SIGNATURES)
+
+Assume that the provided `binned` is binary (see [`is_binary`](@ref)) and 
+use numerical integration to obtain a discretized posterior. 
+
+Use a uniform prior over the fraction of stars with at least one companion.
 """
-function numerical(binned::BinnedIndepRuns, eps = 0.001) 
-    @assert is_binary(binned)
-    return numerical(
+numerical(binned::BinnedIndepRuns, eps = 0.001) =
+    numerical(
         local_companionship_posteriors(binned), 
         binned.tilde_psi, 
         Uniform(0.0, 1.0), 
         eps,
         Float64
     )
-end
 
-function sensitivity(binned::BinnedIndepRuns, eps)
-    lcp = local_companionship_posteriors(binned)
-    prior(mu) = Beta(mu, 1 - mu) 
-    posterior(mu::T) where {T} = numerical_mean(eps,
-            numerical(
-                lcp,
-                binned.tilde_psi,
-                prior(mu), 
-                eps, 
-                T
-            )
-        )
-    return ForwardDiff.derivative(posterior, 0.5)
-end
+"""
+$SIGNATURES
 
+A [`BinnedIndepRuns`](@ref) is binary if the maximum number of companions is one 
+and the number of bins is one. 
+
+See also [`binarize`](@ref) for two methods to get a binary binning from a non 
+binary one (either by just looking at overall presence of at least on companion, or 
+by focusing single bin).  
+"""
 is_binary(binned::BinnedIndepRuns) = binned.max_n_companions == 1 && binned.binning.n_bins == 1
 
-local_companionship_posteriors(binned::BinnedIndepRuns) = vec(mean(sample -> sample.n_companions, binned.samples, dims = 2))
+function local_companionship_posteriors(binned::BinnedIndepRuns) 
+    @assert is_binary(binned)
+    return vec(mean(sample -> sample.n_companions, binned.samples, dims = 2))
+end
 
 function numerical(local_companionship_posteriors::Vector, tilde_psi::Vector, psi_prior::Distribution, eps::Real, ::Type{T}) where {T}
     @assert eps > 0 
@@ -53,7 +54,7 @@ function numerical(local_companionship_posteriors::Vector, tilde_psi::Vector, ps
         sum = logpdf(psi_prior, psi)
         
         for system_index in eachindex(log_BFs) 
-            sum += log_BFs[system_index] == Inf ? log(psi) : logsumexp(log(psi) + log_BFs[system_index], log1p(-psi))
+            sum += log_BFs[system_index] == Inf ? log(psi) : logaddexp(log(psi) + log_BFs[system_index], log1p(-psi))
         end
         result[posterior_discretization_index] = sum
     end
@@ -80,19 +81,47 @@ at least one planet (irrespective of its position).
 function binarize(binned::BinnedIndepRuns)
     pr_no_companion = binned.tilde_psi[1]
     tilde_psi = [pr_no_companion, 1.0 - pr_no_companion]
+    function binarize(s::BinnedSample)
+        has_companion = s.n_companions > 0 ? 1 : 0
+        return BinnedSample{Tuple{Int64}}(has_companion, (has_companion,))
+    end
     samples = map(binarize, binned.samples) 
     b = collapse(binned.binning)
     return BinnedIndepRuns(b, samples, tilde_psi, 1, binned.star_names)
 end
 
-function binarize(s::BinnedSample)
-    has_companion = s.n_companions > 0 ? 1 : 0
-    return BinnedSample{Tuple{Int64}}(has_companion, (has_companion,))
+"""
+$SIGNATURES
+
+Produce a coarser binning based on the indicator function of whether there is 
+at least one planet in bin index `k`.
+"""
+function binarize(binned::BinnedIndepRuns, k::Int)
+    K = binned.binning.n_bins 
+    @assert K > 1 
+    @assert 1 ≤ k ≤ K 
+
+    # Prior probability of having no companion in bin k. 
+    #  = E[P(no companion in bin k | number of companions)]
+    # NOTE: Assuming a uniform prior here
+    pr_no_companion = sum(c -> binned.tilde_psi[c] * ((K - 1.0)/K)^(c-1), eachindex(binned.tilde_psi))
+    @assert 0 < pr_no_companion < 1
+
+    tilde_psi = [pr_no_companion, 1.0 - pr_no_companion]
+    
+    function binarize(s::BinnedSample)
+        has_companion_in_given_bin = any(==(k), s.bin_memberships)
+        return BinnedSample{Tuple{Int64}}(has_companion_in_given_bin, (has_companion_in_given_bin,))
+    end
+    samples = map(binarize, binned.samples) 
+
+    # keep track of the bin we reduced to 
+    b = intervals_from_bin_index(binned.binning, k)
+    return BinnedIndepRuns(b, samples, tilde_psi, 1, binned.star_names)
 end
 
 collapse(grid::StepRangeLen) = range(minimum(grid), maximum(grid), 2)
 collapse(b::Binning) = Binning(collapse(b.log_P_yr_grid), collapse(b.log_q_grid), (1, 1), 1)
-
 
 function compare_numerical_imh(rng, binned; 
         # The KS test assumes iid samples, so we need thin+burn-in
