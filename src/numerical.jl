@@ -1,17 +1,30 @@
 """
 $(SIGNATURES)
+
+Assume that the provided `binned` is binary (see [`is_binary`](@ref)) and 
+use numerical integration to obtain a discretized posterior. 
+
+Use a uniform prior over the fraction of stars with at least one companion.
 """
-function numerical(binned::BinnedIndepRuns, eps = 0.001) 
-    
-    return numerical(
+numerical(binned::BinnedIndepRuns, eps = 0.001) =
+    numerical(
         local_companionship_posteriors(binned), 
         binned.tilde_psi, 
         Uniform(0.0, 1.0), 
         eps,
         Float64
     )
-end
 
+"""
+$SIGNATURES
+
+A [`BinnedIndepRuns`](@ref) is binary if the maximum number of companions is one 
+and the number of bins is one. 
+
+See also [`binarize`](@ref) for two methods to get a binary binning from a non 
+binary one (either by just looking at overall presence of at least on companion, or 
+by focusing single bin).  
+"""
 is_binary(binned::BinnedIndepRuns) = binned.max_n_companions == 1 && binned.binning.n_bins == 1
 
 function local_companionship_posteriors(binned::BinnedIndepRuns) 
