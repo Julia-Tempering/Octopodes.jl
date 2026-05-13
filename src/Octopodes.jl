@@ -8,6 +8,7 @@ using   Distributions,
 
 import LogExpFunctions: logaddexp
 import ForwardDiff
+import JLD2
 
 include("utils.jl")
 include("indep_mcmc_runs.jl")
@@ -17,6 +18,7 @@ include("numerical.jl")
 include("sensitivity.jl")
 include("synthetic.jl")
 include("examples.jl")
+include("visualization.jl")
 
 export IndepRuns, Binning, bin
 
