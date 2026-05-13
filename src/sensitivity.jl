@@ -13,7 +13,7 @@ function sensitivity(binned::BinnedIndepRuns, eps)
     lcp = local_companionship_posteriors(binned)
     prior(mu) = Beta(2mu, 2(1 - mu)) 
     posterior(mu::T) where {T} = 
-        numerical_mean(eps,
+        numerical_mean(
             numerical(
                 lcp,
                 binned.tilde_psi,

@@ -1,0 +1,85 @@
+""" 
+$SIGNATURES 
+"""
+function numerical_posterior_plot(posterior::Vector, true_proportion = nothing)
+    grid = build_grid(posterior)
+    fig, ax, _ = lines(grid, posterior)
+    ax.xlabel = L"\psi" 
+    ax.ylabel = "posterior density"
+    if !isnothing(true_proportion)
+        vlines!(ax, [true_proportion], color=:green, linestyle=:dash)
+    end
+    return fig
+end
+
+
+
+
+## Reproducing the paper's figures
+
+plots_foler() = mkpath("results/Planet-Demographics/plots")
+
+function validation_and_interpretation_figure(real_data) 
+    output_folder = plots_foler()
+
+    # real data for comparison and setting number of systems, stars
+    real_binarized = binarize(bin(Binning(real_data, n_log_P_yr_intervals = 1, n_log_q_intervals = 1), real_data))
+    real_local_post = standardized_local_posteriors(real_binarized)
+    local_fig, local_ax, _ = lines(real_local_post, label = "Real data")
+    n_systems, n_systems_iters = size(real_binarized.samples)
+    save_latex_key_values("$output_folder/validation_and_interpretation_figure_variables.tex";
+        totalnsystems = n_systems,
+        niters = n_systems_iters
+    )
+    real_posterior_plot = numerical_posterior_plot(numerical(real_binarized))
+    save("$output_folder/validation_and_interpretation_figure__real.png", real_posterior_plot; size = (200, 200))
+    
+    # synthetic data on the same plot
+    psis = [0.5, 0.9, 1.0] 
+    for psi in psis 
+        generated = generate_binary_indep_runs(; psi_some_companion_truth = psi, n_systems, n_systems_iters)
+        posterior_plot = posterior_recovery_plot(generated)
+        save("$output_folder/validation_and_interpretation_figure__psi=$psi.png", posterior_plot; size = (200, 200))
+    
+        synth_local_post = standardized_local_posteriors(generated.runs)
+        lines!(local_ax, synth_local_post, label = L"Synthetic (\psi^* = $psi)", linestyle = :dash)
+    end
+
+    save("$output_folder/validation_and_interpretation_figure__locals.png", local_fig)
+    return local_fig
+end
+
+save_latex_key_values(path::String; kwargs...) = 
+    open(path, "w") do io
+        for (k, v) in kwargs
+            println(io, "\\newcommand{\\$k}{$v}")
+        end
+    end
+
+function posterior_recovery_plot(generated, eps = default_eps)
+    binned = generated.runs 
+    true_proportion = generated.psi_some_companion_truth 
+    posterior = numerical(binned, eps)
+    return numerical_posterior_plot(posterior, true_proportion)
+end
+
+
+function all_figures(jld2_file::String)
+    real_data = IndepRuns(JLD2.load(jld2_file))
+    # TODO: save jld2_file + commit + date
+    validation_and_interpretation_figure(real_data) 
+    full_run(real_data)
+end
+
+
+function full_run(real_data)
+    output_folder = plots_foler()
+
+    # real data for comparison and setting number of systems, stars
+    real_binned = bin(Binning(real_data, n_log_P_yr_intervals = 1, n_log_q_intervals = 1), real_data)
+    
+    rng = Xoshiro(1)
+    results = run_imh(rng, real_binned)
+    @show mean(results.psi_trace, dims = 2)
+    return results
+end

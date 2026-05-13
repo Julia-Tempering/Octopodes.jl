@@ -1,3 +1,5 @@
+const default_eps = 0.001
+
 """
 $(SIGNATURES)
 
@@ -6,7 +8,7 @@ use numerical integration to obtain a discretized posterior.
 
 Use a uniform prior over the fraction of stars with at least one companion.
 """
-numerical(binned::BinnedIndepRuns, eps = 0.001) =
+numerical(binned::BinnedIndepRuns, eps = default_eps) =
     numerical(
         local_companionship_posteriors(binned), 
         binned.tilde_psi, 
@@ -32,21 +34,23 @@ function local_companionship_posteriors(binned::BinnedIndepRuns)
     return vec(mean(sample -> sample.n_companions, binned.samples, dims = 2))
 end
 
+to_logBF(local_companionship_posterior, tilde_psi) = 
+    log(local_companionship_posterior) -
+    log1p(-local_companionship_posterior) + 
+    log1p(-tilde_psi) - 
+    log(tilde_psi)
+
+companion_probability(log_BF) = 1 / (1 + exp(-log_BF))
+
 function numerical(local_companionship_posteriors::Vector, tilde_psi::Vector, psi_prior::Distribution, eps::Real, ::Type{T}) where {T}
     @assert eps > 0 
     @assert all(0 .<= local_companionship_posteriors .<= 1) 
     @assert length(tilde_psi) == 2 && sum(tilde_psi) ≈ 1 
     @assert Distributions.value_support(typeof(psi_prior)) == Distributions.Continuous && minimum(psi_prior) == 0 && maximum(psi_prior) == 1
 
-    log_tilde_psi_ratio = log(tilde_psi[1]) - log(tilde_psi[2]) 
-    to_logBF(local_companionship_posterior) =  
-        log(local_companionship_posterior) -
-        log1p(-local_companionship_posterior) + 
-        log_tilde_psi_ratio
+    log_BFs = to_logBF.(local_companionship_posteriors, tilde_psi[2]) 
 
-    log_BFs = to_logBF.(local_companionship_posteriors) 
-
-    grid = eps:eps:(1.0-eps) 
+    grid = build_grid(eps) 
     result = zeros(T, length(grid))
 
     for posterior_discretization_index in eachindex(result)
@@ -62,8 +66,22 @@ function numerical(local_companionship_posteriors::Vector, tilde_psi::Vector, ps
     return result*(length(grid)+1) # Turn the PMF into a density
 end
 
-function numerical_mean(eps::Real, posterior::Vector{T}) where {T}
-    psis = eps:eps:(1.0-eps) 
+function standardized_local_posteriors(binned::BinnedIndepRuns)
+    # raw local posterior might use a prior different than 1/2, 'standarize' it
+    raw_local_posteriors = local_companionship_posteriors(binned)
+    log_BFs = to_logBF.(raw_local_posteriors, binned.tilde_psi[2]) 
+    return sort(companion_probability.(log_BFs))
+end
+
+build_grid(eps::Real) = eps:eps:(1.0-eps)
+build_grid(posterior::Vector) = build_grid(eps(posterior))
+
+eps(n::Int) = 1.0 / (n + 1)
+eps(posterior::Vector) = eps(length(posterior))
+
+function numerical_mean(posterior::Vector{T}) where {T}
+    psis = build_grid(posterior) 
+    eps = Octopodes.eps(posterior)
     sum = zero(T)
     for posterior_discretization_index in eachindex(posterior)
         sum += eps * psis[posterior_discretization_index] * posterior[posterior_discretization_index]
