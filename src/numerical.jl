@@ -74,11 +74,14 @@ function standardized_local_posteriors(binned::BinnedIndepRuns)
 end
 
 build_grid(eps::Real) = eps:eps:(1.0-eps)
-build_grid(n::Int) = build_grid(1.0 / (n + 1))
-build_grid(posterior::Vector) = build_grid(length(posterior))
+build_grid(posterior::Vector) = build_grid(eps(posterior))
+
+eps(n::Int) = 1.0 / (n + 1)
+eps(posterior::Vector) = eps(length(posterior))
 
 function numerical_mean(posterior::Vector{T}) where {T}
     psis = build_grid(posterior) 
+    eps = Octopodes.eps(posterior)
     sum = zero(T)
     for posterior_discretization_index in eachindex(posterior)
         sum += eps * psis[posterior_discretization_index] * posterior[posterior_discretization_index]
