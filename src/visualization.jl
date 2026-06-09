@@ -13,14 +13,19 @@ function numerical_posterior_plot(posterior::Vector, true_proportion = nothing)
 end
 
 
-
-
 ## Reproducing the paper's figures
 
-plots_foler() = mkpath("results/Planet-Demographics/plots")
+function all_figures(jld2_file::String)
+    real_data = IndepRuns(JLD2.load(jld2_file))
+    # TODO: save jld2_file + commit + date
+    validation_and_interpretation_figure(real_data) 
+    full_run(real_data)
+end
+
+plots_folder() = mkpath("results/Planet-Demographics/plots")
 
 function validation_and_interpretation_figure(real_data) 
-    output_folder = plots_foler()
+    output_folder = plots_folder()
 
     # real data for comparison and setting number of systems, stars
     real_binarized = binarize(bin(Binning(real_data, n_log_P_yr_intervals = 1, n_log_q_intervals = 1), real_data))
@@ -62,15 +67,6 @@ function posterior_recovery_plot(generated, eps = default_eps)
     posterior = numerical(binned, eps)
     return numerical_posterior_plot(posterior, true_proportion)
 end
-
-
-function all_figures(jld2_file::String)
-    real_data = IndepRuns(JLD2.load(jld2_file))
-    # TODO: save jld2_file + commit + date
-    validation_and_interpretation_figure(real_data) 
-    full_run(real_data)
-end
-
 
 function full_run(real_data)
     output_folder = plots_foler()

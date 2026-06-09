@@ -1,4 +1,11 @@
 """
+$SIGNATURES 
+
+Family of priors used in numerical prior sensitivity analysis.
+"""
+prior(mu) = Beta(2mu, 2(1 - mu)) 
+
+"""
 $(SIGNATURES) 
 
 Assume that the provided `binned` is binary (see [`is_binary`](@ref)).
@@ -9,9 +16,10 @@ Embed the prior assumed there in `Beta(2mu, 2(1-mu))` family prior
 Use `ForwardDiff` to compute the derivative of the posterior mean 
 with respect to `mu` at `1/2` (i.e., in the neighbourhood of the uniform prior).
 """
-function sensitivity(binned::BinnedIndepRuns, eps)
+function sensitivity(binned::BinnedIndepRuns, eps = default_eps)
+    @assert is_binary(binned)
     lcp = local_companionship_posteriors(binned)
-    prior(mu) = Beta(2mu, 2(1 - mu)) 
+    
     posterior(mu::T) where {T} = 
         numerical_mean(
             numerical(
@@ -23,6 +31,21 @@ function sensitivity(binned::BinnedIndepRuns, eps)
             )
         )
     return posterior(0.5), ForwardDiff.derivative(posterior, 0.5)
+end
+
+function joint_detection_sensitivity(binned::BinnedIndepRuns, system_index::Int, eps = default_eps)
+    @assert is_binary(binned)
+    lcp = local_companionship_posteriors(binned)
+    posterior(mu::T) where {T} = 
+        numerical_joint_prediction(
+            system_index,
+            lcp,
+            binned.tilde_psi,
+            prior(mu), 
+            eps, 
+            T
+        )
+    return posterior(0.5), ForwardDiff.derivative(posterior, 0.5) 
 end
 
 """
