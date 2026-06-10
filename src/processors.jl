@@ -16,6 +16,9 @@ end
     end
 
 function posterior_detection(jt::JointDetection, n_companion::Int, system_index::Int)
-    normalize!(@view(jt.per_system_membership_sums[:, system_index])) 
-    return jt.per_system_membership_sums[n_companion + 1, system_index]
+    slice = @view jt.per_system_membership_sums[:, system_index]
+    if !(sum(slice) ≈ 1)
+        normalize!(slice)
+    end
+    return slice[n_companion + 1]
 end
