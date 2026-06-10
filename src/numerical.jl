@@ -17,9 +17,8 @@ numerical(binned::BinnedIndepRuns, eps = default_eps) =
         Float64
     )
 
-numerical_joint_prediction(binned::BinnedIndepRuns, system_index::Int, eps = default_eps) = 
+numerical_joint_prediction(binned::BinnedIndepRuns, eps = default_eps) = 
     numerical_joint_prediction(
-        system_index,
         local_companionship_posteriors(binned),
         binned.tilde_psi,
         Uniform(0.0, 1.0), 
@@ -99,11 +98,13 @@ function numerical_mean(test_function, posterior::Vector{T}) where {T}
     end
     return sum
 end
-function numerical_joint_prediction(system_index::Int, local_companionship_posteriors::Vector, tilde_psi::Vector, psi_prior::Distribution, eps::Real, ::Type{T}) where {T}
+function numerical_joint_prediction(local_companionship_posteriors::Vector, tilde_psi::Vector, psi_prior::Distribution, eps::Real, ::Type{T}) where {T}
     posterior = numerical(local_companionship_posteriors, tilde_psi, psi_prior, eps, T)
-    BF = exp(to_logBF(local_companionship_posteriors[system_index], tilde_psi[2]))
-    test_fct(psi) = 1/(1 + (1 - psi) / psi / BF)
-    return numerical_mean(test_fct, posterior)
+    BFs = exp.(to_logBF.(local_companionship_posteriors, tilde_psi[2]))
+    return map(BFs) do BF 
+        test_fct(psi) = 1/(1 + (1 - psi) / psi / BF)
+        numerical_mean(test_fct, posterior)
+    end
 end
 
 

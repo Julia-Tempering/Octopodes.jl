@@ -19,7 +19,6 @@ with respect to `mu` at `1/2` (i.e., in the neighbourhood of the uniform prior).
 function sensitivity(binned::BinnedIndepRuns, eps = default_eps)
     @assert is_binary(binned)
     lcp = local_companionship_posteriors(binned)
-    
     posterior(mu::T) where {T} = 
         numerical_mean(
             numerical(
@@ -33,12 +32,11 @@ function sensitivity(binned::BinnedIndepRuns, eps = default_eps)
     return posterior(0.5), ForwardDiff.derivative(posterior, 0.5)
 end
 
-function joint_detection_sensitivity(binned::BinnedIndepRuns, system_index::Int, eps = default_eps)
+function joint_detection_sensitivity(binned::BinnedIndepRuns, eps = default_eps)
     @assert is_binary(binned)
     lcp = local_companionship_posteriors(binned)
     posterior(mu::T) where {T} = 
         numerical_joint_prediction(
-            system_index,
             lcp,
             binned.tilde_psi,
             prior(mu), 

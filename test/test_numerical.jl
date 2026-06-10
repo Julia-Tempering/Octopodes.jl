@@ -2,14 +2,14 @@
     binned = binarize(Octopodes.bin(b, runs))
 
     Octopodes.compare_numerical_imh(Xoshiro(41), binned)
-    Octopodes.numerical_joint_prediction(binned, 1)
+    Octopodes.numerical_joint_prediction(binned)
     Octopodes.sensitivity(binned) 
-    Octopodes.joint_detection_sensitivity(binned, 1)
+    Octopodes.joint_detection_sensitivity(binned)
 
     @test_opt Octopodes.compare_numerical_imh(Xoshiro(41), binned)
-    @test_opt Octopodes.numerical_joint_prediction(binned, 1)
+    @test_opt Octopodes.numerical_joint_prediction(binned)
     @test_opt Octopodes.sensitivity(binned) 
-    @test_opt Octopodes.joint_detection_sensitivity(binned, 1)
+    @test_opt Octopodes.joint_detection_sensitivity(binned)
 end
 
 @testset "Approx agreement of joint reconstruction IMH vs numerical" begin
@@ -21,10 +21,5 @@ end
         mcmc_lazy_pr = 0.9)
     binned = generated.runs 
 
-    stars = 1:n_systems 
-
-    t = @timed numerical = [Octopodes.numerical_joint_prediction(binned, star) for star in stars]
-    @show t
-    t = @timed numerical = [Octopodes.numerical_joint_prediction(binned, star) for star in stars]
-    @show t 
+    numerical = Octopodes.numerical_joint_prediction(binned)
 end
