@@ -26,7 +26,6 @@ results_prefix = "$(Octopodes.plots_folder())/numerical_imh_check"
 end
 
 @testset "IMH and numerical agree on real data" begin 
-    b = Binning(runs, n_log_P_yr_intervals = 1, n_log_q_intervals = 1)
     binned = binarize(Octopodes.bin(b, runs))
 
     compare_numerical_imh_results = 

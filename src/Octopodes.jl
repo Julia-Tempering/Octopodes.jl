@@ -19,7 +19,8 @@ include("sensitivity.jl")
 include("synthetic.jl")
 include("examples.jl")
 include("visualization.jl")
+include("processors.jl")
 
-export IndepRuns, Binning, bin
+export IndepRuns, Binning, bin, run_imh
 
 end
