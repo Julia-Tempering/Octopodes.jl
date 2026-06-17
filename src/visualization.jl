@@ -12,7 +12,7 @@ function numerical_posterior_plot(posterior::Vector, true_proportion = nothing)
     return fig
 end
 
-function joint_detection_sensitivity_synth_plot()
+function joint_detection_prior_sensitivity_synth_plot()
 
     psi_some_companion_truth = 0.8 
     generated = Octopodes.generate_binary_indep_runs(;
@@ -26,7 +26,7 @@ function joint_detection_sensitivity_synth_plot()
 
     fig = Figure(size = (600, 450))
     ax1 = Axis(fig[1, 1], xscale = log10,                 ylabel = L"P(n_1 > 0|y_{1:S})")
-    ax2 = Axis(fig[2, 1], xscale = log10, yscale = log10, ylabel = L"\log |\partial P(n_1 > 0|y_{1:S})|", xlabel = L"S")
+    ax2 = Axis(fig[2, 1], xscale = log10, yscale = log10, ylabel = L"|\partial_\mu P_\mu(n_1 > 0|y_{1:S})|", xlabel = L"S")
     hidexdecorations!(ax1, grid = false, ticks = false)
 
     bayes_optimal = Octopodes.synthetic_local_posterior(psi_some_companion_truth, false)
@@ -51,6 +51,13 @@ function all_figures(jld2_file::String)
 end
 
 plots_folder() = mkpath("results/Planet-Demographics/plots")
+
+function prior_sensitivity_figure()
+    output_folder = plots_folder()
+
+    synth_plot = joint_detection_prior_sensitivity_synth_plot() 
+    save("$output_folder/prior_sensitivity_figure_synth.png", synth_plot)
+end
 
 function validation_and_interpretation_figure(real_data) 
     output_folder = plots_folder()
