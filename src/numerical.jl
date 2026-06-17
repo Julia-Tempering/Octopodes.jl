@@ -51,7 +51,7 @@ to_logBF(local_companionship_posterior, tilde_psi) =
 
 companion_probability(log_BF) = 1 / (1 + exp(-log_BF))
 
-function numerical(local_companionship_posteriors::Vector, tilde_psi::Vector, psi_prior::Distribution, eps::Real, ::Type{T}) where {T}
+function numerical(local_companionship_posteriors::AbstractVector, tilde_psi::AbstractVector, psi_prior::Distribution, eps::Real, ::Type{T}) where {T}
     @assert eps > 0 
     @assert all(0 .<= local_companionship_posteriors .<= 1) 
     @assert length(tilde_psi) == 2 && sum(tilde_psi) ≈ 1 
@@ -83,13 +83,13 @@ function standardized_local_posteriors(binned::BinnedIndepRuns)
 end
 
 build_grid(eps::Real) = eps:eps:(1.0-eps)
-build_grid(posterior::Vector) = build_grid(eps(posterior))
+build_grid(posterior::AbstractVector) = build_grid(eps(posterior))
 
 eps(n::Int) = 1.0 / (n + 1)
-eps(posterior::Vector) = eps(length(posterior))
+eps(posterior::AbstractVector) = eps(length(posterior))
 
 numerical_mean(posterior) = numerical_mean(identity, posterior)
-function numerical_mean(test_function, posterior::Vector{T}) where {T}
+function numerical_mean(test_function, posterior::AbstractVector{T}) where {T}
     psis = build_grid(posterior) 
     eps = Octopodes.eps(posterior)
     sum = zero(T)
@@ -98,7 +98,7 @@ function numerical_mean(test_function, posterior::Vector{T}) where {T}
     end
     return sum
 end
-function numerical_joint_prediction(local_companionship_posteriors::Vector, tilde_psi::Vector, psi_prior::Distribution, eps::Real, ::Type{T}) where {T}
+function numerical_joint_prediction(local_companionship_posteriors::AbstractVector, tilde_psi::AbstractVector, psi_prior::Distribution, eps::Real, ::Type{T}) where {T}
     posterior = numerical(local_companionship_posteriors, tilde_psi, psi_prior, eps, T)
     BFs = exp.(to_logBF.(local_companionship_posteriors, tilde_psi[2]))
     return map(BFs) do BF 

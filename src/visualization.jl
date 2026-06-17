@@ -12,6 +12,34 @@ function numerical_posterior_plot(posterior::Vector, true_proportion = nothing)
     return fig
 end
 
+function joint_detection_sensitivity_synth_plot()
+
+    psi_some_companion_truth = 0.8 
+    generated = Octopodes.generate_binary_indep_runs(;
+            psi_some_companion_truth, 
+            n_systems = 100000,
+            n_systems_iters = 10000,
+            mcmc_lazy_pr = 0.5)
+
+    # Only the curves corresponding to a no-companion are non-trivial
+    s = findfirst(iszero, generated.x_truth)
+
+    fig = Figure(size = (600, 450))
+    ax1 = Axis(fig[1, 1], xscale = log10,                 ylabel = L"P(n_1 > 0|y_{1:S})")
+    ax2 = Axis(fig[2, 1], xscale = log10, yscale = log10, ylabel = L"\log |\partial P(n_1 > 0|y_{1:S})|", xlabel = L"S")
+    hidexdecorations!(ax1, grid = false, ticks = false)
+
+    bayes_optimal = Octopodes.synthetic_local_posterior(psi_some_companion_truth, false)
+    hlines!(ax1, [bayes_optimal[2]], linestyle = :dash, color = :gray, linewidth = 1.5)
+
+    series = joint_detection_sensitivity_by_n_systems(generated.runs, s) 
+    len = length(series.posteriors) 
+    xs = 2 .^ (1:len)
+    lines!(ax1, xs, series.posteriors)
+    lines!(ax2, xs, abs.(series.derivatives))
+    return fig
+end
+
 
 ## Reproducing the paper's figures
 

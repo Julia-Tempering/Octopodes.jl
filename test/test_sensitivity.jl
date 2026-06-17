@@ -34,3 +34,21 @@ end
     @show Octopodes.relative_sensitivities(bin(b, runs), 0.001) 
     @test_opt Octopodes.relative_sensitivities(bin(b, runs), 0.001)
 end
+
+@testset "Sensitivities for joint reconstructions" begin  
+    psi_some_companion_truth = 0.8
+    generated = Octopodes.generate_binary_indep_runs(;
+            psi_some_companion_truth, 
+            n_systems = 100000,
+            n_systems_iters = 2000,
+            mcmc_lazy_pr = 0.5)
+
+    @show bayes_optimal = Octopodes.synthetic_local_posterior(psi_some_companion_truth, false)
+
+    binned = generated.runs
+
+    out = Octopodes.joint_detection_sensitivity_by_n_systems(binned, 3)
+
+    @test abs(last(out.posteriors) - bayes_optimal[2]) < 0.05
+    @test last(out.derivatives) < 0.05
+end

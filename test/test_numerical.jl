@@ -4,12 +4,12 @@
     Octopodes.compare_numerical_imh(Xoshiro(41), binned)
     Octopodes.numerical_joint_prediction(binned)
     Octopodes.sensitivity(binned) 
-    Octopodes.joint_detection_sensitivity(binned)
+    Octopodes.joint_detection_sensitivities(binned)
 
     @test_opt Octopodes.compare_numerical_imh(Xoshiro(41), binned)
     @test_opt Octopodes.numerical_joint_prediction(binned)
     @test_opt Octopodes.sensitivity(binned) 
-    @test_opt Octopodes.joint_detection_sensitivity(binned)
+    @test_opt Octopodes.joint_detection_sensitivities(binned)
 end
 
 @testset "Approx agreement of joint reconstruction IMH vs numerical" begin
@@ -29,3 +29,4 @@ end
 
     @test maximum(abs.(numerical - imh)) < 0.01
 end
+

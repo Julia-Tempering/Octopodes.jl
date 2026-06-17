@@ -32,7 +32,7 @@ function sensitivity(binned::BinnedIndepRuns, eps = default_eps)
     return posterior(0.5), ForwardDiff.derivative(posterior, 0.5)
 end
 
-function joint_detection_sensitivity(binned::BinnedIndepRuns, eps = default_eps)
+function joint_detection_sensitivities(binned::BinnedIndepRuns, eps = default_eps)
     @assert is_binary(binned)
     lcp = local_companionship_posteriors(binned)
     posterior(mu::T) where {T} = 
@@ -44,6 +44,34 @@ function joint_detection_sensitivity(binned::BinnedIndepRuns, eps = default_eps)
             T
         )
     return posterior(0.5), ForwardDiff.derivative(posterior, 0.5) 
+end
+
+function joint_detection_sensitivity_by_n_systems(binned::BinnedIndepRuns, system_index::Int, eps = default_eps)
+    @assert is_binary(binned)
+    full_lcp = local_companionship_posteriors(binned)
+    full_lcp[1], full_lcp[system_index] = full_lcp[system_index], full_lcp[1]
+
+    posteriors = Float64[] 
+    derivatives = Float64[] 
+
+    current_size = 1 
+    while current_size ≤ length(full_lcp)
+        lcp = @view full_lcp[1:current_size] 
+
+        posterior(mu::T) where {T} = 
+            numerical_joint_prediction(
+                lcp,
+                binned.tilde_psi,
+                prior(mu), 
+                eps, 
+                T
+            )
+        push!(posteriors, posterior(0.5)[1])
+        push!(derivatives, ForwardDiff.derivative(posterior, 0.5)[1])
+
+        current_size *= 2
+    end
+    return (; posteriors, derivatives)
 end
 
 """

@@ -46,11 +46,16 @@ function _generate_binary_data(psi_some_companion_truth, n_systems, rng)
     return x_truth, data
 end 
 
-function _generate_binary_trace!(output, datum::Bool, tilde_psi_some_companion, mcmc_lazy_pr, rng, shuffle_rng) 
-    posterior = [
+function synthetic_local_posterior(tilde_psi_some_companion, datum) 
+    gamma = [
         (1 - tilde_psi_some_companion) * pdf(likelihood(0), datum), 
         tilde_psi_some_companion       * pdf(likelihood(1), datum)]
-    posterior = posterior / sum(posterior) 
+    return gamma / sum(gamma) 
+end
+
+function _generate_binary_trace!(output, datum::Bool, tilde_psi_some_companion, mcmc_lazy_pr, rng, shuffle_rng) 
+    posterior = synthetic_local_posterior(tilde_psi_some_companion, datum) 
+    
     some_comp_bern = Bernoulli(posterior[2])
 
     n_iterations = length(output)
