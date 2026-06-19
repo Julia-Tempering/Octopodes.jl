@@ -37,3 +37,14 @@ function ks_p_value(d_stat, n)
     z = sqrt(n) * d_stat
     return 1 - Distributions.cdf(Kolmogorov(), z)
 end
+
+function max_repeats(vec::Vector)
+    counts = Dict{eltype(vec), Int}()
+    for x in vec
+        counts[x] = Base.get(counts, x, 0) + 1
+    end
+    return maximum(values(counts))
+end
+
+max_repeats(ir::IndepRuns) = 
+    maximum([max_repeats(ir.traces[s].log_q[1,:]) for s in eachindex(ir.traces)])
