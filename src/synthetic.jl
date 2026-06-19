@@ -67,7 +67,7 @@ function _generate_binary_trace!(output, datum::Bool, tilde_psi_some_companion, 
                 samples_before_shuffling[i-1] 
             else 
                 has_companion = rand(rng, some_comp_bern) ? 1 : 0
-                BinnedSample{Tuple{Int64}}(has_companion, (has_companion,))
+                BinnedSample{Tuple{Int64}}(has_companion, (has_companion,), 0)
             end
     end
     shuffled_indices = shuffle_if_needed(shuffle_rng, 1:n_iterations) 

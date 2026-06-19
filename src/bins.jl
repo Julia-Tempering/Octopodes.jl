@@ -116,7 +116,7 @@ function _bin!(output, b::Binning, comp_indices::T, system_trace::NamedTuple, sh
             buffer[c] = c ≤ n_companions ? bin(b, values) : 0
         end
         bin_memberships = map(i -> buffer[i], comp_indices) 
-        output[iter] = BinnedSample(n_companions, bin_memberships)
+        output[iter] = BinnedSample(n_companions, bin_memberships, shuffled_indices[iter])
     end
     return nothing 
 end
@@ -132,6 +132,12 @@ struct BinnedSample{T <: Tuple}
 
     """ Contains inactive ones (for type stability) - the inactive ones are set to zero. """
     bin_memberships::T 
+
+    """
+    Index of this sample in the original independent MCMC 
+    trace.
+    """
+    indep_trace_index::Int
 end
 
 """

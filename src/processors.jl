@@ -31,6 +31,7 @@ end
 
 
 struct JointReconstuction{T}
+    """ Same sizes as IMH proposal matrix: system x iteration """
     states_trace::T
 end
 
@@ -60,4 +61,22 @@ function joint_reconstructions(lambda::Function, jr::JointReconstuction, burnin_
     burnedin_traces = @view(jr.states_trace[:, first:end]) 
     broadcast_lambda(x) = lambda.(x)
     return mean(broadcast_lambda, eachcol(burnedin_traces))
+end
+
+struct JointReconstructionWeightCalculator{T}
+    """ Transpose of IMH proposal matrix: iteration x system """
+    transposed_states_trace::T 
+end
+JointReconstructionWeightCalculator(jr::JointReconstuction) = 
+    JointReconstructionWeightCalculator(permutedims(jr.states_trace))
+
+function joint_reconstruction_weights(wc::JointReconstructionWeightCalculator, system_index::Int)
+    n_samples, _ = size(wc.transposed_states_trace)
+    result = zeros(n_samples)
+    for iter in 1:n_samples 
+        imh_sample = wc.transposed_states_trace[iter, system_index]
+        indep_run_sample_index = imh_sample.indep_trace_index 
+        result[indep_run_sample_index] += 1
+    end
+    return result 
 end
