@@ -5,11 +5,10 @@
     processor_reconstruction = Octopodes.JointReconstuction(binned) 
     results = run_imh(Xoshiro(41), binned, processor_reconstruction)
 
-    wc = Octopodes.JointReconstructionWeightCalculator(processor_reconstruction)
 
-    @test_opt Octopodes.joint_reconstruction_weights(wc, 1)
+    @test_opt Octopodes.joint_reconstruction_weights(processor_reconstruction)
 
-    weights = Octopodes.joint_reconstruction_weights(wc, 1)
+    weights = Octopodes.joint_reconstruction_weights(processor_reconstruction)[:, 1]
     n = length(weights)
     nz = sum(iszero, weights)
     hard_accept_rate = (n - 1 - nz) / (n - 1)

@@ -46,5 +46,5 @@ function max_repeats(vec::Vector)
     return maximum(values(counts))
 end
 
-max_repeats(ir::IndepRuns) = 
-    maximum([max_repeats(ir.traces[s].log_q[1,:]) for s in eachindex(ir.traces)])
+max_repeats(indep_runs) = 
+    maximum([max_repeats(indep_runs.traces[s].log_q[1,:]) for s in eachindex(indep_runs.traces)])
