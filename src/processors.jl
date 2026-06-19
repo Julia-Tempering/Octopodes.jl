@@ -65,6 +65,26 @@ end
 
 """
 $SIGNATURES
+
+Suppose we wish to at reconstruction of individual systems 
+based on the full dataset, `p(n_s, x_s | y_{1:S})`. 
+
+In that case we can go back to the resolution of individual 
+system traces, i.e., unbinned samples stored in 
+`IndepRuns.traces`. Notice that the IMH sampler is based on 
+proposing these system-level samples. So the number of times 
+each is accepted (including possibly zero) is equivalent to  
+a weighting scheme. While the preprocessing includes a shuffling 
+of the traces (this was found to increase IMH sample quality), 
+each `BinnedSample` keeps a record of its index in the original 
+`IndepRuns.traces` (namely, `imh_sample.indep_trace_index`). 
+We use that to create weights that are in the same order as 
+those in `IndepRuns.traces`. 
+
+Returns a matrix of dims `n_samples, n_systems`. The result is 
+stored as `Float64` even though the entries are integers 
+to facilitate in place normalization and emphasize that the 
+fact the values are integers is in a sense an implementation detail. 
 """
 function joint_reconstruction_weights(jr::JointReconstuction) 
     transposed_states_trace = permutedims(jr.states_trace) 
