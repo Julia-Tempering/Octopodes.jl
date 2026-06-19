@@ -1,9 +1,10 @@
 module Octopodes 
 
-using   Distributions, 
+using   Distributions,
         DocStringExtensions,
         CairoMakie,
         LaTeXStrings,
+        Printf,
         Random
 
 import LogExpFunctions: logaddexp
@@ -20,6 +21,7 @@ include("synthetic.jl")
 include("examples.jl")
 include("visualization.jl")
 
-export IndepRuns, Binning, bin
+export IndepRuns, Binning, bin,
+       run_imh, population_posterior, population_posterior_plot
 
 end

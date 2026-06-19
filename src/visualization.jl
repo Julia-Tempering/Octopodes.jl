@@ -83,3 +83,276 @@ function full_run(real_data)
     @show mean(results.psi_trace, dims = 2)
     return results
 end
+
+
+## ──────────────────────────────────────────────────────────────────────────
+## Population (joint-π) posterior: summary + heatmap
+## ──────────────────────────────────────────────────────────────────────────
+
+"""
+$(TYPEDEF)
+
+Posterior summary of the joint population model produced by [`run_imh`](@ref),
+reduced to the quantities needed to describe and plot companion demographics.
+
+Construct one with [`population_posterior`](@ref). The companion-rate density is
+``\\lambda_x = \\mathbb{E}[n]\\,\\pi_x`` — the expected number of companions per
+star in bin ``x`` — under the single shared bin distribution ``\\pi`` of the
+joint model. Multiply by 100 for the conventional "companions per 100 stars per
+bin" units.
+
+$(FIELDS)
+"""
+struct PopulationPosterior{B <: Binning}
+    """ The [`Binning`](@ref) the posterior is defined on (carries the grid edges). """
+    binning::B
+    """ Companion-count distribution ``\\psi``. Dims: `(max_n_companions + 1) × n_keep`. """
+    psi::Matrix{Float64}
+    """ Shared per-bin distribution ``\\pi`` (flattened). Dims: `n_bins × n_keep`. """
+    pi::Matrix{Float64}
+    """ Per-bin companion-rate density ``\\lambda = \\mathbb{E}[n]\\,\\pi``. Dims: `n_keep × n_log_P × n_log_q`. """
+    lambda::Array{Float64, 3}
+    """ Tail probabilities ``P(n \\ge c)`` for `c = 1 … max_n_companions`. Dims: `max_n_companions × n_keep`. """
+    P_geq::Matrix{Float64}
+    """ Expected companion count ``\\mathbb{E}[n]`` per retained draw. Length `n_keep`. """
+    E_n::Vector{Float64}
+    """ Number of post-warmup IMH iterations retained. """
+    n_keep::Int
+    """ Fraction of the trace discarded as warmup. """
+    warmup_frac::Float64
+end
+
+Base.show(io::IO, p::PopulationPosterior) = print(io,
+    "PopulationPosterior(n_bins=$(p.binning.n_bins), ",
+    "max_n_companions=$(size(p.psi, 1) - 1), n_keep=$(p.n_keep))")
+
+"""
+$(SIGNATURES)
+
+Summarize the raw output of [`run_imh`](@ref) into a [`PopulationPosterior`](@ref).
+
+`result` is the named tuple returned by `run_imh` (with fields `psi_trace` and
+`pi_trace`); `binning` is the [`Binning`](@ref) used to produce the binned runs.
+The leading `warmup_frac` of each trace is discarded, then the per-draw companion
+rate density ``\\lambda = \\mathbb{E}[n]\\,\\pi``, tail probabilities
+``P(n \\ge c)`` and expected count ``\\mathbb{E}[n]`` are computed.
+
+This is the standard reduction every downstream demographics plot needs, so it
+lives here rather than in user scripts. See [`population_posterior_plot`](@ref).
+"""
+function population_posterior(result, binning::Binning; warmup_frac::Real = 0.2)
+    0 ≤ warmup_frac < 1 || throw(ArgumentError("warmup_frac must be in [0, 1), got $warmup_frac"))
+    psi_trace = result.psi_trace
+    pi_trace  = result.pi_trace
+
+    n_iters = size(psi_trace, 2)
+    warmup  = max(1, floor(Int, warmup_frac * n_iters))
+    keep    = (warmup + 1):n_iters
+    psi     = psi_trace[:, keep]                # (max_n_comp + 1) × n_keep
+    pi      = pi_trace[:, keep]                 # n_bins × n_keep
+    n_keep  = length(keep)
+
+    n_per, n_mass = binning.partition_sizes
+    max_n_comp = size(psi, 1) - 1
+
+    # P(n ≥ c) tail probabilities, c = 1 … max_n_comp.
+    P_geq = zeros(max_n_comp, n_keep)
+    for c in 1:max_n_comp, s in 1:n_keep
+        P_geq[c, s] = sum(@view psi[c+1:end, s])
+    end
+
+    # Expected companion count E[n] per retained draw.
+    n_vals = collect(0:max_n_comp)
+    E_n    = vec(n_vals' * psi)
+
+    # Joint per-bin rate density λ_x = E[n] · π_x (single shared π).
+    lambda = zeros(n_keep, n_per, n_mass)
+    for s in 1:n_keep
+        pi_mat = reshape(@view(pi[:, s]), n_per, n_mass)
+        lambda[s, :, :] .= E_n[s] .* pi_mat
+    end
+
+    return PopulationPosterior(binning, psi, pi, lambda, P_geq, E_n, n_keep, Float64(warmup_frac))
+end
+
+function _hdi(samples; credible_mass = 0.75)
+    s = sort(samples)
+    n = length(s)
+    n_inc = floor(Int, credible_mass * n)
+    widths = [s[i + n_inc] - s[i] for i in 1:(n - n_inc)]
+    idx = argmin(widths)
+    return (s[idx], s[idx + n_inc])
+end
+
+function _bin_counts(values::AbstractVector{<:Real}, edges::AbstractVector{<:Real})
+    counts = zeros(Int, length(edges) - 1)
+    for v in values
+        isfinite(v) || continue
+        (v < edges[1] || v > edges[end]) && continue
+        i = clamp(searchsortedlast(edges, v), 1, length(counts))
+        counts[i] += 1
+    end
+    return counts
+end
+
+function _step_xy(edges::AbstractVector{<:Real}, counts::AbstractVector{<:Real})
+    xs = Float64[]; ys = Float64[]
+    for i in eachindex(counts)
+        push!(xs, edges[i]);     push!(ys, counts[i])
+        push!(xs, edges[i + 1]); push!(ys, counts[i])
+    end
+    return xs, ys
+end
+
+"""
+$(SIGNATURES)
+
+Plot the joint-π population posterior: a heatmap of the per-bin companion rate
+density ``\\lambda \\cdot 100`` (companions per 100 stars per bin) over the
+``(\\log_{10} P, \\log_{10} q)`` grid, with the period- and mass-marginal rates
+and ``P(\\ge 1)`` shown as boxplots on the margins.
+
+Three methods are provided, all reading the grid edges from the
+[`Binning`](@ref) so they never have to be passed by hand:
+
+- `population_posterior_plot(post::PopulationPosterior; ...)` — the usual call.
+- `population_posterior_plot(result, binning; warmup_frac = 0.2, ...)` — runs
+  [`population_posterior`](@ref) for you, straight from [`run_imh`](@ref) output.
+- `population_posterior_plot(lambda_grid, pi_geq1, binning; ...)` — low-level,
+  for a pre-computed rate grid `(n_draws × n_log_P × n_log_q)` and `P(≥1)` draws.
+
+Keyword arguments:
+- `figsize::Tuple = (900, 600)` — figure size in points.
+- `outfile::Union{String, Nothing} = nothing` — if set, save the figure there.
+- `colorscale = log10` — heatmap colour scale.
+- `truths::Union{NamedTuple, Nothing} = nothing` — optional injection truth for an
+  injection/recovery diagnostic. Fields: `log_P_yr`, `log_q` (centres, required);
+  optional bounds `log_P_yr_lo`/`log_P_yr_hi`/`log_q_lo`/`log_q_hi`; and `n_stars`
+  (host count, used to put truth histograms in the same `λ·100` units). When given,
+  cyan crosses/errorbars mark each truth on the heatmap and normalised truth
+  histograms are overlaid on the marginals.
+
+Returns the `Makie.Figure`.
+"""
+function population_posterior_plot(post::PopulationPosterior; kwargs...)
+    return population_posterior_plot(post.lambda, post.P_geq[1, :], post.binning; kwargs...)
+end
+
+function population_posterior_plot(result, binning::Binning; warmup_frac::Real = 0.2, kwargs...)
+    return population_posterior_plot(population_posterior(result, binning; warmup_frac); kwargs...)
+end
+
+function population_posterior_plot(
+        lambda_grid::AbstractArray{<:Real, 3},
+        pi_geq1::AbstractVector{<:Real},
+        binning::Binning;
+        figsize::Tuple = (900, 600),
+        outfile::Union{String, Nothing} = nothing,
+        truths::Union{NamedTuple, Nothing} = nothing,
+        colorscale = log10,
+    )
+    # Bin edges come straight from the binning, already in log₁₀ space.
+    log_per_edges  = collect(binning.log_P_yr_grid)
+    log_mass_edges = collect(binning.log_q_grid)
+
+    quantity      = lambda_grid
+    quantity_mean = mean(quantity, dims = 1)[1, :, :]
+
+    fig = Figure(size = figsize)
+
+    # Main heatmap — λ × 100 (companions per 100 stars per bin).
+    ax = Axis(fig[2, 1];
+        xlabel = "log₁₀ period [yr]",
+        ylabel = "log₁₀ mass-ratio",
+        xgridvisible = false, ygridvisible = false,
+    )
+    h = heatmap!(ax, log_per_edges, log_mass_edges, quantity_mean .* 100;
+        colorscale, colormap = :seaborn_rocket_gradient)
+    Colorbar(fig[2, 4], h)
+    Label(fig[1, 4], "λ·100", tellheight = false, valign = :bottom)
+
+    per_centres  = (log_per_edges[1:end-1]  .+ log_per_edges[2:end])  ./ 2
+    mass_centres = (log_mass_edges[1:end-1] .+ log_mass_edges[2:end]) ./ 2
+
+    # Top marginal: sum over mass.
+    ta = Axis(fig[1, 1];
+        xticksvisible = false, xticklabelsvisible = false,
+        xgridvisible = false,  ygridvisible = false,
+        ylabel = "∑λ·100\nover mass",
+    )
+    boxplot!(ta,
+        repeat(per_centres, inner = size(quantity, 1)),
+        sum(quantity, dims = 3)[:] .* 100;
+        color = :grey, markersize = 3, width = first(diff(log_per_edges)))
+
+    # Right marginal: sum over period.
+    ra = Axis(fig[2, 2:3];
+        yticksvisible = false,
+        xgridvisible = false, ygridvisible = false,
+        xticklabelrotation = pi/4,
+        xlabel = "∑λ·100 over period",
+        yaxisposition = :right,
+        yticks = (mass_centres,
+            mapslices(sum(quantity, dims = 2), dims = 1) do s
+                lo, hi = _hdi(s)
+                @sprintf("[%.0f, %.0f]", lo * 100, hi * 100)
+            end[:]),
+    )
+    boxplot!(ra,
+        repeat(mass_centres, inner = size(quantity, 1)),
+        sum(quantity, dims = 2)[:] .* 100;
+        color = :grey, orientation = :horizontal, markersize = 3,
+        width = first(diff(log_mass_edges)))
+
+    # Top-right: P(≥1) boxplot.
+    tra = Axis(fig[1, 2:3];
+        xticksvisible = false, xticklabelsvisible = false,
+        xgridvisible = false,  ygridvisible = false,
+        yaxisposition = :right, ylabel = "P(≥1)",
+    )
+    ylims!(tra, 0, 1)
+    boxplot!(tra, fill(-5.5, length(pi_geq1)), pi_geq1; color = :grey, markersize = 3)
+
+    rowsize!(fig.layout, 2, Auto(4))
+    colsize!(fig.layout, 1, Auto(8))
+    colsize!(fig.layout, 2, Auto(1))
+    colsize!(fig.layout, 3, Auto(1/4))
+    rowgap!(fig.layout, 1, 10); colgap!(fig.layout, 1, 10)
+
+    linkxaxes!(ax, ta); linkyaxes!(ax, ra)
+    xlims!(ta, extrema(log_per_edges))
+    ylims!(ra, extrema(log_mass_edges))
+
+    # ── Truth overlay (injection / recovery diagnostic) ──
+    if truths !== nothing
+        log_P    = collect(truths.log_P_yr)
+        log_q    = collect(truths.log_q)
+        log_P_lo = haskey(truths, :log_P_yr_lo) ? collect(truths.log_P_yr_lo) : copy(log_P)
+        log_P_hi = haskey(truths, :log_P_yr_hi) ? collect(truths.log_P_yr_hi) : copy(log_P)
+        log_q_lo = haskey(truths, :log_q_lo)    ? collect(truths.log_q_lo)    : copy(log_q)
+        log_q_hi = haskey(truths, :log_q_hi)    ? collect(truths.log_q_hi)    : copy(log_q)
+        n_stars  = haskey(truths, :n_stars)     ? truths.n_stars              : length(log_P)
+
+        cyan = RGBAf(0.0, 0.85, 0.95, 0.95)
+
+        scatter!(ax, log_P, log_q;
+            color = cyan, marker = :xcross, markersize = 9, strokewidth = 0)
+        errorbars!(ax, log_P, log_q, log_P .- log_P_lo, log_P_hi .- log_P;
+            direction = :x, color = cyan, whiskerwidth = 4, linewidth = 1.0)
+        errorbars!(ax, log_P, log_q, log_q .- log_q_lo, log_q_hi .- log_q;
+            direction = :y, color = cyan, whiskerwidth = 4, linewidth = 1.0)
+
+        per_rate  = _bin_counts(log_P, log_per_edges)  .* (100 / max(n_stars, 1))
+        mass_rate = _bin_counts(log_q, log_mass_edges) .* (100 / max(n_stars, 1))
+        xs_top, ys_top = _step_xy(log_per_edges, per_rate)
+        lines!(ta, xs_top, ys_top; color = cyan, linewidth = 1.6)
+        ys_r, xs_r = _step_xy(log_mass_edges, mass_rate)
+        lines!(ra, xs_r, ys_r; color = cyan, linewidth = 1.6)
+    end
+
+    if outfile !== nothing
+        CairoMakie.save(outfile, fig)
+        @info "Saved $outfile"
+    end
+    return fig
+end
