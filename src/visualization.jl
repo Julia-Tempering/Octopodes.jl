@@ -13,7 +13,6 @@ function numerical_posterior_plot(posterior::Vector, true_proportion = nothing)
 end
 
 function joint_detection_prior_sensitivity_synth_plot()
-
     psi_some_companion_truth = 0.8 
     generated = Octopodes.generate_binary_indep_runs(;
             psi_some_companion_truth, 
@@ -24,20 +23,41 @@ function joint_detection_prior_sensitivity_synth_plot()
     # Only the curves corresponding to a no-companion are non-trivial
     s = findfirst(iszero, generated.x_truth)
 
-    fig = Figure(size = (600, 450))
-    ax1 = Axis(fig[1, 1], xscale = log10,                 ylabel = L"P(n_1 > 0|y_{1:S})")
-    ax2 = Axis(fig[2, 1], xscale = log10, yscale = log10, ylabel = L"|\partial_\mu P_\mu(n_1 > 0|y_{1:S})|", xlabel = L"S")
-    hidexdecorations!(ax1, grid = false, ticks = false)
+    fig, ax1, ax2 = _joint_detection_sensitivity_plot()
 
     bayes_optimal = Octopodes.synthetic_local_posterior(psi_some_companion_truth, false)
     hlines!(ax1, [bayes_optimal[2]], linestyle = :dash, color = :gray, linewidth = 1.5)
 
-    series = joint_detection_sensitivity_by_n_systems(generated.runs, s) 
+    indices = collect(1:n_systems)
+    indices[1], indices[s] = indices[s], indices[1]
+    series = joint_detection_sensitivity_by_n_systems(generated.runs, indices) 
     len = length(series.posteriors) 
     xs = 2 .^ (1:len)
     lines!(ax1, xs, series.posteriors)
     lines!(ax2, xs, abs.(series.derivatives))
     return fig
+end
+
+function joint_detection_prior_sensitivity_real_plot(real_data::BinnedIndepRuns)
+    fig, ax1, ax2 = _joint_detection_sensitivity_plot()
+    rng = Xoshiro(42)
+    for _ in 1:100
+        p = randperm(rng, length(real_data.star_names))
+        series = joint_detection_sensitivity_by_n_systems(real_data, p) 
+        len = length(series.posteriors) 
+        xs = 2 .^ (1:len)
+        lines!(ax1, xs, series.posteriors)
+        lines!(ax2, xs, abs.(series.derivatives))
+    end
+    return fig
+end
+
+function _joint_detection_sensitivity_plot() 
+    fig = Figure(size = (600, 450))
+    ax1 = Axis(fig[1, 1], xscale = log10,                 ylabel = L"P(n_1 > 0|y_{1:S})")
+    ax2 = Axis(fig[2, 1], xscale = log10, yscale = log10, ylabel = L"|\partial_\mu P_\mu(n_1 > 0|y_{1:S})|", xlabel = L"S")
+    hidexdecorations!(ax1, grid = false, ticks = false)
+    return fig, ax1, ax2
 end
 
 
@@ -59,11 +79,11 @@ function prior_sensitivity_figure()
     save("$output_folder/prior_sensitivity_figure_synth.png", synth_plot)
 end
 
-function validation_and_interpretation_figure(real_data) 
+function validation_and_interpretation_figure(real_data::BinnedIndepRuns) 
     output_folder = plots_folder()
 
     # real data for comparison and setting number of systems, stars
-    real_binarized = binarize(bin(Binning(real_data, n_log_P_yr_intervals = 1, n_log_q_intervals = 1), real_data))
+    real_binarized = binarize(real_data)
     real_local_post = standardized_local_posteriors(real_binarized)
     local_fig, local_ax, _ = lines(real_local_post, label = "Real data")
     n_systems, n_systems_iters = size(real_binarized.samples)

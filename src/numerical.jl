@@ -1,4 +1,4 @@
-const default_eps = 0.001
+const default_eps = 0.0001
 
 """
 $(SIGNATURES)

@@ -96,9 +96,9 @@ shuffle_if_needed(rng::AbstractRNG, indices) = shuffle(rng, indices)
 function _bin!(output, b::Binning, comp_indices::T, system_trace::NamedTuple, shuffle_rng) where {T <: Tuple}
     n_samples::Int = length(output)
     shuffled_indices = shuffle_if_needed(shuffle_rng, 1:n_samples)
-    log_P_yr::Matrix{Float64} = @view system_trace.log_P_yr[:, shuffled_indices]
-    log_q::Matrix{Float64} = @view system_trace.log_q[:, shuffled_indices]
-    n_planets::Vector{Int64} = @view system_trace.n_planets[shuffled_indices] 
+    log_P_yr = system_trace.log_P_yr[:, shuffled_indices]
+    log_q = system_trace.log_q[:, shuffled_indices]
+    n_planets = system_trace.n_planets[shuffled_indices] 
     
     @assert size(log_P_yr) == size(log_q)
     @assert size(log_P_yr)[2] == size(log_q)[2] == length(n_planets) == n_samples
