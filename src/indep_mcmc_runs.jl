@@ -60,5 +60,5 @@ function max_n_companions_and_samples(traces::Vector)
     return size(system_trace.log_P_yr)
 end
 
-max_n_companions(runs::IndepRuns) = get(runs.mv)
-get(::Val{x}) where {x} = x
+max_n_companions(runs::IndepRuns) = get_from_val(runs.mv)
+get_from_val(::Val{x}) where {x} = x

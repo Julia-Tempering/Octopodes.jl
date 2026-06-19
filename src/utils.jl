@@ -41,7 +41,7 @@ end
 function max_repeats(vec::Vector)
     counts = Dict{eltype(vec), Int}()
     for x in vec
-        counts[x] = Base.get(counts, x, 0) + 1
+        counts[x] = get(counts, x, 0) + 1
     end
     return maximum(values(counts))
 end

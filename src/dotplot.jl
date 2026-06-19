@@ -128,7 +128,7 @@ function posterior_dotplot!(ax::Axis,
             a = wmax > 0 ? base_alpha * (pts.ws[i] / wmax) : base_alpha
             RGBAf(col.r, col.g, col.b, a)
         end
-        marks = [Base.get(ncomp_markers, pts.ncomp[i], :star5) for i in sel]
+        marks = [get(ncomp_markers, pts.ncomp[i], :star5) for i in sel]
         scatter!(ax, pts.xs[sel], pts.ys[sel];
             color = cols, marker = marks, markersize = markersize, rasterize = 4)
     end
