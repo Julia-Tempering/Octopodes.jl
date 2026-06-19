@@ -37,3 +37,24 @@ end
     )
     @test population_posterior_plot(post; truths) isa Figure
 end
+
+@testset "Poor-sensitivity masking" begin
+    binned = bin(b, runs)
+    result = run_imh(rng, binned)
+    post = population_posterior(result, b)
+
+    sens = relative_sensitivities(binned, 1e-3)
+    @test length(sens) == b.n_bins
+    thresh = sum(sens) / length(sens)   # mask roughly the most prior-driven half
+
+    @test population_posterior_plot(post; sensitivity = sens,
+                                    sensitivity_threshold = thresh) isa Figure
+    @test population_posterior_plot(result, b; sensitivity = sens,
+                                    sensitivity_threshold = thresh) isa Figure
+
+    # threshold is mandatory when sensitivity is given
+    @test_throws ArgumentError population_posterior_plot(post; sensitivity = sens)
+    # wrong-length sensitivity vector is rejected
+    @test_throws DimensionMismatch population_posterior_plot(post;
+        sensitivity = sens[1:end-1], sensitivity_threshold = thresh)
+end

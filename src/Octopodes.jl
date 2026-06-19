@@ -22,6 +22,7 @@ include("examples.jl")
 include("visualization.jl")
 
 export IndepRuns, Binning, bin,
-       run_imh, population_posterior, population_posterior_plot
+       run_imh, relative_sensitivities,
+       population_posterior, population_posterior_plot
 
 end

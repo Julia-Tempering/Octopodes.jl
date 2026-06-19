@@ -29,6 +29,13 @@ post.lambda   # n_keep × n_log_P × n_log_q  (E[n]·π per bin)
 post.P_geq    # max_n_companions × n_keep   (P(n ≥ c))
 fig = population_posterior_plot(post)
 
+# Bins whose posterior is driven by the prior rather than the data can be masked
+# out using the per-bin relative prior-sensitivity. Masked bins are blanked on the
+# heatmap and dropped from the marginal sums:
+
+sens = relative_sensitivities(binned, 1e-3)
+fig = population_posterior_plot(post; sensitivity = sens, sensitivity_threshold = 2.0)
+
 # ## How to generate/preview doc
 
 # Use `include("docs/preview.jl")` or `include("docs/make.jl")`.

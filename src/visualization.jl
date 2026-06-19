@@ -204,6 +204,17 @@ function _step_xy(edges::AbstractVector{<:Real}, counts::AbstractVector{<:Real})
     return xs, ys
 end
 
+# Build a (n_log_P × n_log_q) boolean mask of bins to blank, from a per-bin
+# relative-sensitivity vector (as from `relative_sensitivities`) and a threshold.
+function _sensitivity_mask(binning::Binning, sensitivity, threshold)
+    sensitivity === nothing && return nothing
+    threshold === nothing && throw(ArgumentError(
+        "`sensitivity_threshold` is required when `sensitivity` is supplied"))
+    length(sensitivity) == binning.n_bins || throw(DimensionMismatch(
+        "sensitivity has length $(length(sensitivity)), expected n_bins = $(binning.n_bins)"))
+    return vector_to_array(binning, collect(sensitivity)) .> threshold
+end
+
 """
 $(SIGNATURES)
 
@@ -231,6 +242,15 @@ Keyword arguments:
   (host count, used to put truth histograms in the same `λ·100` units). When given,
   cyan crosses/errorbars mark each truth on the heatmap and normalised truth
   histograms are overlaid on the marginals.
+- `sensitivity::Union{AbstractVector{<:Real}, Nothing} = nothing` — optional per-bin
+  relative prior-sensitivity (length `binning.n_bins`), as returned by
+  [`relative_sensitivities`](@ref). Bins whose value exceeds `sensitivity_threshold`
+  are masked: blanked (drawn in `masked_color`) on the heatmap and excluded from the
+  marginal sums, so the figure shows only data-constrained regions. Typical use:
+  `sensitivity = relative_sensitivities(binned, 1e-3)`.
+- `sensitivity_threshold::Union{Real, Nothing} = nothing` — required when `sensitivity`
+  is given; bins with `sensitivity .> sensitivity_threshold` are masked.
+- `masked_color = (:grey, 0.5)` — fill colour for masked (poor-sensitivity) bins.
 
 Returns the `Makie.Figure`.
 """
@@ -250,13 +270,31 @@ function population_posterior_plot(
         outfile::Union{String, Nothing} = nothing,
         truths::Union{NamedTuple, Nothing} = nothing,
         colorscale = log10,
+        sensitivity::Union{AbstractVector{<:Real}, Nothing} = nothing,
+        sensitivity_threshold::Union{Real, Nothing} = nothing,
+        masked_color = (:grey, 0.5),
     )
     # Bin edges come straight from the binning, already in log₁₀ space.
     log_per_edges  = collect(binning.log_P_yr_grid)
     log_mass_edges = collect(binning.log_q_grid)
 
-    quantity      = lambda_grid
-    quantity_mean = mean(quantity, dims = 1)[1, :, :]
+    # Optional poor-sensitivity mask (true ⇒ blank the bin), shaped (n_log_P × n_log_q).
+    mask = _sensitivity_mask(binning, sensitivity, sensitivity_threshold)
+
+    n_draws       = size(lambda_grid, 1)
+    # For the heatmap, blank masked bins (→ NaN, drawn in `masked_color`).
+    quantity_mean = float.(mean(lambda_grid, dims = 1)[1, :, :])
+    if mask !== nothing
+        quantity_mean[mask] .= NaN
+    end
+    # For the marginals, exclude masked bins from the per-draw sums (set them to 0).
+    quantity = lambda_grid
+    if mask !== nothing
+        quantity = copy(lambda_grid)
+        for s in 1:n_draws
+            @view(quantity[s, :, :])[mask] .= 0
+        end
+    end
 
     fig = Figure(size = figsize)
 
@@ -267,7 +305,7 @@ function population_posterior_plot(
         xgridvisible = false, ygridvisible = false,
     )
     h = heatmap!(ax, log_per_edges, log_mass_edges, quantity_mean .* 100;
-        colorscale, colormap = :seaborn_rocket_gradient)
+        colorscale, colormap = :seaborn_rocket_gradient, nan_color = masked_color)
     Colorbar(fig[2, 4], h)
     Label(fig[1, 4], "λ·100", tellheight = false, valign = :bottom)
 
@@ -281,7 +319,7 @@ function population_posterior_plot(
         ylabel = "∑λ·100\nover mass",
     )
     boxplot!(ta,
-        repeat(per_centres, inner = size(quantity, 1)),
+        repeat(per_centres, inner = n_draws),
         sum(quantity, dims = 3)[:] .* 100;
         color = :grey, markersize = 3, width = first(diff(log_per_edges)))
 
@@ -299,7 +337,7 @@ function population_posterior_plot(
             end[:]),
     )
     boxplot!(ra,
-        repeat(mass_centres, inner = size(quantity, 1)),
+        repeat(mass_centres, inner = n_draws),
         sum(quantity, dims = 2)[:] .* 100;
         color = :grey, orientation = :horizontal, markersize = 3,
         width = first(diff(log_mass_edges)))
