@@ -2,13 +2,12 @@
 
     binned = bin(b, runs)
 
-    processor_reconstruction = Octopodes.JointReconstuction(binned) 
-    results = run_imh(Xoshiro(41), binned, processor_reconstruction)
+    
+    results = run_imh(Xoshiro(41), binned)
 
+    @test_opt Octopodes.joint_reconstruction_weights(results.states_trace)
 
-    @test_opt Octopodes.joint_reconstruction_weights(processor_reconstruction)
-
-    weights = Octopodes.joint_reconstruction_weights(processor_reconstruction)[:, 1]
+    weights = Octopodes.joint_reconstruction_weights(results.states_trace)[:, 1]
     n = length(weights)
     nz = sum(iszero, weights)
     hard_accept_rate = (n - 1 - nz) / (n - 1)

@@ -23,21 +23,19 @@ end
 
     numerical = Octopodes.numerical_joint_prediction(binned)
 
-    processor_detection = Octopodes.JointDetection(n_systems, 2) 
+    processor_detection = Octopodes.JointDetection(n_systems, 2, 0.2) 
     run_imh(Xoshiro(41), binned, processor_detection)
     imh = [Octopodes.posterior_detection(processor_detection, 1, s) for s in 1:n_systems]
 
     @test maximum(abs.(numerical - imh)) < 0.01
 
-    processor_reconstruction = Octopodes.JointReconstuction(binned) 
-    run_imh(Xoshiro(41), binned, processor_reconstruction)
+    imh_result = run_imh(Xoshiro(41), binned)
+    post = Octopodes.population_posterior(imh_result)
 
     hascompanions(s::Octopodes.BinnedSample) = s.n_companions > 0 ? 1.0 : 0.0
-    imh2 = Octopodes.joint_reconstructions(hascompanions, processor_reconstruction) 
+    imh2 = Octopodes.joint_reconstructions(hascompanions, post) 
     @test maximum(abs.(imh2 - imh)) < 0.0001
 
-    @test_opt Octopodes.JointReconstuction(binned)
-    @test_opt run_imh(Xoshiro(41), binned, processor_reconstruction)
-    @test_opt Octopodes.joint_reconstructions(hascompanions, processor_reconstruction) 
+    @test_opt Octopodes.joint_reconstructions(hascompanions, post) 
 end
 

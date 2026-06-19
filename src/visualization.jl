@@ -140,91 +140,7 @@ end
 ## Population (joint-π) posterior: summary + heatmap
 ## ──────────────────────────────────────────────────────────────────────────
 
-"""
-$(TYPEDEF)
 
-Posterior summary of the joint population model produced by [`run_imh`](@ref),
-reduced to the quantities needed to describe and plot companion demographics.
-
-Construct one with [`population_posterior`](@ref). The companion-rate density is
-``\\lambda_x = \\mathbb{E}[n]\\,\\pi_x`` — the expected number of companions per
-star in bin ``x`` — under the single shared bin distribution ``\\pi`` of the
-joint model. Multiply by 100 for the conventional "companions per 100 stars per
-bin" units.
-
-$(FIELDS)
-"""
-struct PopulationPosterior{B <: Binning}
-    """ The [`Binning`](@ref) the posterior is defined on (carries the grid edges). """
-    binning::B
-    """ Companion-count distribution ``\\psi``. Dims: `(max_n_companions + 1) × n_keep`. """
-    psi::Matrix{Float64}
-    """ Shared per-bin distribution ``\\pi`` (flattened). Dims: `n_bins × n_keep`. """
-    pi::Matrix{Float64}
-    """ Per-bin companion-rate density ``\\lambda = \\mathbb{E}[n]\\,\\pi``. Dims: `n_keep × n_log_P × n_log_q`. """
-    lambda::Array{Float64, 3}
-    """ Tail probabilities ``P(n \\ge c)`` for `c = 1 … max_n_companions`. Dims: `max_n_companions × n_keep`. """
-    P_geq::Matrix{Float64}
-    """ Expected companion count ``\\mathbb{E}[n]`` per retained draw. Length `n_keep`. """
-    E_n::Vector{Float64}
-    """ Number of post-warmup IMH iterations retained. """
-    n_keep::Int
-    """ Fraction of the trace discarded as warmup. """
-    warmup_frac::Float64
-end
-
-Base.show(io::IO, p::PopulationPosterior) = print(io,
-    "PopulationPosterior(n_bins=$(p.binning.n_bins), ",
-    "max_n_companions=$(size(p.psi, 1) - 1), n_keep=$(p.n_keep))")
-
-"""
-$(SIGNATURES)
-
-Summarize the raw output of [`run_imh`](@ref) into a [`PopulationPosterior`](@ref).
-
-`result` is the named tuple returned by `run_imh` (with fields `psi_trace` and
-`pi_trace`); `binning` is the [`Binning`](@ref) used to produce the binned runs.
-The leading `warmup_frac` of each trace is discarded, then the per-draw companion
-rate density ``\\lambda = \\mathbb{E}[n]\\,\\pi``, tail probabilities
-``P(n \\ge c)`` and expected count ``\\mathbb{E}[n]`` are computed.
-
-This is the standard reduction every downstream demographics plot needs, so it
-lives here rather than in user scripts. See [`population_posterior_plot`](@ref).
-"""
-function population_posterior(result, binning::Binning; warmup_frac::Real = 0.2)
-    0 ≤ warmup_frac < 1 || throw(ArgumentError("warmup_frac must be in [0, 1), got $warmup_frac"))
-    psi_trace = result.psi_trace
-    pi_trace  = result.pi_trace
-
-    n_iters = size(psi_trace, 2)
-    warmup  = max(1, floor(Int, warmup_frac * n_iters))
-    keep    = (warmup + 1):n_iters
-    psi     = psi_trace[:, keep]                # (max_n_comp + 1) × n_keep
-    pi      = pi_trace[:, keep]                 # n_bins × n_keep
-    n_keep  = length(keep)
-
-    n_per, n_mass = binning.partition_sizes
-    max_n_comp = size(psi, 1) - 1
-
-    # P(n ≥ c) tail probabilities, c = 1 … max_n_comp.
-    P_geq = zeros(max_n_comp, n_keep)
-    for c in 1:max_n_comp, s in 1:n_keep
-        P_geq[c, s] = sum(@view psi[c+1:end, s])
-    end
-
-    # Expected companion count E[n] per retained draw.
-    n_vals = collect(0:max_n_comp)
-    E_n    = vec(n_vals' * psi)
-
-    # Joint per-bin rate density λ_x = E[n] · π_x (single shared π).
-    lambda = zeros(n_keep, n_per, n_mass)
-    for s in 1:n_keep
-        pi_mat = reshape(@view(pi[:, s]), n_per, n_mass)
-        lambda[s, :, :] .= E_n[s] .* pi_mat
-    end
-
-    return PopulationPosterior(binning, psi, pi, lambda, P_geq, E_n, n_keep, Float64(warmup_frac))
-end
 
 function _hdi(samples; credible_mass = 0.75)
     s = sort(samples)
@@ -309,8 +225,8 @@ function population_posterior_plot(post::PopulationPosterior; kwargs...)
     return population_posterior_plot(post.lambda, post.P_geq[1, :], post.binning; kwargs...)
 end
 
-function population_posterior_plot(result, binning::Binning; warmup_frac::Real = 0.2, kwargs...)
-    return population_posterior_plot(population_posterior(result, binning; warmup_frac); kwargs...)
+function population_posterior_plot(result; warmup_frac::Real = 0.2, kwargs...)
+    return population_posterior_plot(population_posterior(result; warmup_frac); kwargs...)
 end
 
 function population_posterior_plot(
