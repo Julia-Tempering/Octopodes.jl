@@ -26,7 +26,7 @@ include("visualization.jl")
 include("dotplot.jl")
 
 
-export IndepRuns, Binning, bin,
+export octopodes, IndepRuns, Binning, bin,
        run_imh, relative_sensitivities,
        population_posterior, population_posterior_plot,
        posterior_dotplot, posterior_dotplot!, population_heatmap_axis
