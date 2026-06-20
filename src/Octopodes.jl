@@ -19,11 +19,12 @@ include("numerical.jl")
 include("sensitivity.jl")
 include("synthetic.jl")
 include("examples.jl")
-include("dotplot.jl")
 include("postprocessing.jl")
 include("api.jl")
-include("visualization.jl")
 include("processors.jl")
+include("visualization.jl")
+include("dotplot.jl")
+
 
 export IndepRuns, Binning, bin,
        run_imh, relative_sensitivities,

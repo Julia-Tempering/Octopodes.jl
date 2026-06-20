@@ -5,9 +5,9 @@
     
     results = run_imh(Xoshiro(41), binned)
 
-    @test_opt Octopodes.joint_reconstruction_weights(results.states_trace)
+    @test_opt Octopodes.joint_reconstruction_weights(results.states_trace, Octopodes.n_samples(runs))
 
-    weights = Octopodes.joint_reconstruction_weights(results.states_trace)[:, 1]
+    weights = Octopodes.joint_reconstruction_weights(results.states_trace, Octopodes.n_samples(runs))[:, 1]
     n = length(weights)
     nz = sum(iszero, weights)
     hard_accept_rate = (n - 1 - nz) / (n - 1)

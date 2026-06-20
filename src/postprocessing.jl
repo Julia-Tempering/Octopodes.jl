@@ -90,8 +90,6 @@ function population_posterior(result; warmup_frac::Real = 0.2)
     return PopulationPosterior(binning, psi, pi, lambda, P_geq, E_n, states_trace, n_keep, Float64(warmup_frac))
 end
 
-
-
 """
 $SIGNATURES
 
@@ -105,9 +103,6 @@ function joint_reconstructions(lambda::Function, states_trace::AbstractMatrix)
     broadcast_lambda(x) = lambda.(x)
     return mean(broadcast_lambda, eachcol(states_trace))
 end
-
-
-
 
 """
 $SIGNATURES
@@ -127,17 +122,24 @@ each `BinnedSample` keeps a record of its index in the original
 We use that to create weights that are in the same order as 
 those in `IndepRuns.traces`. 
 
-Returns a matrix of dims `n_samples, n_systems`. The result is 
+Returns a matrix of dims `n_indep_mcmc_samples, n_systems`. 
+Note that `n_indep_mcmc_samples` refers to the original 
+number of MCMC iterations used in the independent MCMC runs, 
+not the number of iterations in `PopulationPosterior` which 
+removes a prefix of samples for warm up (and IMH iteration is 
+one less than `n_indep_mcmc_samples` due to initialization).
+
+The result is 
 stored as `Float64` even though the entries are integers 
 to facilitate in place normalization and emphasize that the 
 fact the values are integers is in a sense an implementation detail. 
 """
-joint_reconstruction_weights(pp::PopulationPosterior) = joint_reconstruction_weights(pp.states_trace)
-function joint_reconstruction_weights(states_trace::AbstractMatrix) 
+joint_reconstruction_weights(pp::PopulationPosterior, ir::IndepRuns) = joint_reconstruction_weights(pp.states_trace, n_samples(ir))
+function joint_reconstruction_weights(states_trace::AbstractMatrix, indep_runs_length::Int) 
     transposed_states_trace = permutedims(states_trace) 
 
     n_samples, n_systems = size(transposed_states_trace)
-    result = zeros(n_samples, n_systems)
+    result = zeros(indep_runs_length, n_systems)
     
     for system_index in 1:n_systems
         for iter in 1:n_samples 

@@ -283,3 +283,34 @@ function posterior_dotplot(trace::NamedTuple; view::Symbol = :log_P_q,
     x, y = _trace_xy(trace, view)
     return posterior_dotplot(x, y, trace.n_planets; weights, xlabel, ylabel, title, kwargs...)
 end
+
+function joint_reconstruction_plot(
+        posterior::PopulationPosterior, binned::BinnedIndepRuns, ir::IndepRuns, 
+        system_indices::AbstractVector{Int}; 
+        plotargs...)
+
+    weights = joint_reconstruction_weights(posterior, ir)
+
+    combined_fig = Figure(size = (480*length(system_indices), 380*2))
+
+    for i in eachindex(system_indices)
+
+        system_index = system_indices[i]
+
+        # need to search trace by name because of star_selector 
+        name = binned.star_names[system_index]
+        trace = trace_by_name(ir, name)
+
+        weight_vector = @view weights[:, system_index]
+        fig_joint = posterior_dotplot(trace; weights = weight_vector, upper_limit = false, plotargs...)
+        fig_indep = posterior_dotplot(trace; plotargs...)
+
+        return fig_joint
+
+        # # that does not work:
+        # combined_fig[i, 1] = fig_indep.layout  
+        # combined_fig[i, 2] = fig_joint.layout
+    end
+
+    return combined_fig
+end
