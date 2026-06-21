@@ -1,4 +1,4 @@
-@testset "Test joint reconstruction processor" begin
+@testset "Joint reconstruction processor" begin
 
     binned = bin(b, runs)
 
@@ -16,4 +16,15 @@
 
     # only approx b/c accept_prs uses Rao-Blackwellized version
     @test abs(hard_accept_rate - soft_accept_rate) < 0.01
+end
+
+@testset "Multiplicities" begin
+    binned = bin(b, runs) 
+    imh_output = run_imh(rng, binned)
+    posterior = population_posterior(imh_output)
+
+    mult = Octopodes.joint_multiplicities(posterior)
+    @test sum(mult[:, 1]) ≈ 1
+
+    @test_opt Octopodes.joint_multiplicities(posterior)
 end

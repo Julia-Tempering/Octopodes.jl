@@ -17,6 +17,7 @@ function octopodes(ir::IndepRuns;
     imh_output = run_imh(imh_rng, binned)
 
     posterior = population_posterior(imh_output; warmup_frac)
+    multiplicities = joint_multiplicities(posterior)
     posterior_plot = population_posterior_plot(posterior)
 
     system_plots = joint_reconstruction_plot(posterior, binned, ir, 1:max_n_dotplots)
@@ -26,6 +27,7 @@ function octopodes(ir::IndepRuns;
     return (;
         imh_output,
         posterior,
+        joint_multiplicities = multiplicities,
         population_posterior_plot = posterior_plot,
         system_plots
     )

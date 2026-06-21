@@ -36,7 +36,9 @@ end
 
 Base.show(io::IO, p::PopulationPosterior) = print(io,
     "PopulationPosterior(n_bins=$(p.binning.n_bins), ",
-    "max_n_companions=$(size(p.psi, 1) - 1), n_keep=$(p.n_keep))")
+    "max_n_companions=$(max_n_companions(p)), n_keep=$(p.n_keep))")
+
+max_n_companions(p::PopulationPosterior) = size(p.psi, 1) - 1
 
 """
 $(SIGNATURES)
@@ -101,7 +103,29 @@ compute a mean for each system.
 joint_reconstructions(lambda::Function, pp::PopulationPosterior) = joint_reconstructions(lambda, pp.states_trace)
 function joint_reconstructions(lambda::Function, states_trace::AbstractMatrix)
     broadcast_lambda(x) = lambda.(x)
-    return mean(broadcast_lambda, eachcol(states_trace))
+    result = mean(broadcast_lambda, eachcol(states_trace))
+    simplify(r) = r 
+    simplify(r::Vector{Vector{Float64}}) = reduce(hcat, r)
+    return simplify(result)
+end
+
+"""
+$SIGNATURES 
+
+Returns a `(max_n_companions + 1) x n_systems` matrix where entry 
+``n, s``` encodes ``p(n_s | y)``. 
+"""
+function joint_multiplicities(pp::PopulationPosterior)
+    max_n = max_n_companions(pp)
+    return joint_reconstructions(pp) do bs::BinnedSample 
+        one_hot(bs.n_companions + 1, max_n + 1)
+    end
+end
+
+function one_hot(value::Int, max_value::Int) 
+    result = zeros(max_value)
+    result[value] = 1.0
+    return result
 end
 
 """
