@@ -118,8 +118,9 @@ function binarize(binned::BinnedIndepRuns)
     pr_no_companion = binned.tilde_psi[1]
     tilde_psi = [pr_no_companion, 1.0 - pr_no_companion]
     function binarize(s::BinnedSample)
-        has_companion = s.n_companions > 0 ? 1 : 0
-        return BinnedSample{Tuple{Int64}}(has_companion, (has_companion,), s.indep_trace_index)
+        has_companion = UInt8(s.n_companions > 0 ? 1 : 0)
+        
+        return BinnedSample(has_companion, (has_companion,), s.indep_trace_index)
     end
     samples = map(binarize, binned.samples) 
     b = collapse(binned.binning)
@@ -146,8 +147,8 @@ function binarize(binned::BinnedIndepRuns, k::Int)
     tilde_psi = [pr_no_companion, 1.0 - pr_no_companion]
     
     function binarize(s::BinnedSample)
-        has_companion_in_given_bin = any(==(k), s.bin_memberships)
-        return BinnedSample{Tuple{Int64}}(has_companion_in_given_bin, (has_companion_in_given_bin,), s.indep_trace_index)
+        has_companion_in_given_bin = UInt8(any(==(k), s.bin_memberships))
+        return BinnedSample(has_companion_in_given_bin, (has_companion_in_given_bin,), s.indep_trace_index)
     end
     samples = map(binarize, binned.samples) 
 

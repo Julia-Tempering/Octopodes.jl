@@ -35,6 +35,7 @@ function IndepRuns(d::D) where {D <: Dict}
     NT = typeof(first(d["star_data"]))
     traces = Vector{NT}(d["star_data"])
     max = max_n_companions(traces)
+    @assert max < 2^8 # we use UInt 8 for BinnedSample.n_companions
     n_companions_prior = d["n_planets_prior"]
     @assert Distributions.support(n_companions_prior) == 0:max 
     name_to_index = Dict(traces[i].name => i for i in eachindex(traces))
