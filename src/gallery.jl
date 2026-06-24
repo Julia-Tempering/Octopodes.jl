@@ -62,6 +62,72 @@ function _gallery_arrows!(ax, x, y, dx, dy; color = :black, shaftwidth = 1, tipw
     end
 end
 
+# ESS-aware Silverman bandwidth, matching PairPlots.jl's `default_bandwidth_ess`:
+# `0.9 · min(std, IQR/1.34) · n_ess^(-1/5)`, where `n_ess` is the effective
+# sample size (MCMCDiagnosticTools.ess) rather than the raw draw count. Because
+# MCMC draws are autocorrelated, n_ess ≪ n, which *widens* the kernel — this is
+# what gives PairPlots its smooth credible regions (and what a naive
+# `default_bandwidth` on the full N would miss). Falls back to n on a degenerate
+# ess. The weights don't enter here (PairPlots bandwidths the raw chain too).
+function _bandwidth_ess(data::AbstractVector{<:Real}; alpha = 0.9)
+    n = length(data)
+    n <= 1 && return float(alpha)
+    n_ess = try
+        e = MCMCDiagnosticTools.ess(data)
+        (e <= 1 || !isfinite(e)) ? float(n) : float(e)
+    catch
+        float(n)
+    end
+    var_width = std(data)
+    q25, q75 = quantile(data, (0.25, 0.75))
+    width = min(var_width, (q75 - q25) / 1.34)
+    width == 0.0 && (width = var_width == 0.0 ? 1.0 : var_width)
+    return alpha * width * n_ess^(-0.2)
+end
+
+# Weighted 2-D Gaussian KDE for the :contour encoding, evaluated in the
+# already-logged coordinate space (log10 sep/period, log2 mass) where the
+# posteriors are roughly elliptical. A smooth *Gaussian* kernel (not a box kernel
+# on a coarse histogram) is what removes the boxy, axis-aligned look: at equal
+# per-axis bandwidth it is isotropic, so a tilted mass–sep correlation renders as
+# a tilted ellipse. The per-axis bandwidth is the PairPlots ESS rule scaled by
+# `bw_factor`. The density is evaluated PairPlots-style on an N×N grid spanning
+# the data extrema (so the contour math sees the same support PairPlots would).
+# Returns grid coords *in linear data units*, the density matrix, and an
+# interpolant for evaluating density at the raw draws (the hybrid scatter test).
+function _kde_density(logx, logy, w; bw_factor = 1.0, npoints = 100, xbase = 10.0, ybase = 2.0)
+    bw = (_bandwidth_ess(logx), _bandwidth_ess(logy)) .* bw_factor
+    wts = w === nothing ? Weights(ones(length(logx))) : Weights(Float64.(w))
+    k  = KernelDensity.kde((logx, logy); bandwidth = bw, weights = wts)
+    ik = KernelDensity.InterpKDE(k)
+    xr = range(extrema(logx)...; length = npoints)
+    yr = range(extrema(logy)...; length = npoints)
+    dens = [KernelDensity.pdf(ik, xi, yi) for xi in xr, yi in yr]
+    return xbase .^ collect(xr), ybase .^ collect(yr), dens, ik
+end
+
+# Density thresholds for the σ contour bands, matching PairPlots.jl exactly:
+# the target fractions are `1 − exp(−½/σ²)`, and each is turned into a density
+# threshold by walking the ascending-sorted density cumulatively (so the cell
+# area cancels on the uniform grid). Returned ascending, as `contourf!` wants,
+# with collisions nudged apart so the band list stays strictly increasing.
+function _sigma_levels(density, sigmas)
+    fracs = [1 - exp(-0.5 * (1 / s)^2) for s in sigmas]
+    d = sort(vec(density))
+    sm = cumsum(d); sm[end] > 0 || return Float64[]
+    sm = sm ./ sm[end]
+    levels = Float64[]
+    for f in fracs
+        idx = searchsortedlast(sm, f)
+        push!(levels, d[clamp(idx, 1, length(d))])
+    end
+    sort!(levels)
+    for i in 2:length(levels)               # enforce strictly increasing
+        levels[i] <= levels[i-1] && (levels[i] = nextfloat(levels[i-1]))
+    end
+    return levels
+end
+
 # Format a Bayes factor from a natural-log value, "≥"-capped at 4096.
 function _format_bf(lnbf)
     (lnbf === nothing || ismissing(lnbf) || (lnbf isa Real && (isnan(lnbf) || isinf(lnbf)))) && return "—"
@@ -134,7 +200,8 @@ Render one system's multi-companion mass–separation panel into the grid layout
 `*_planet_present`, `*_mass`, and either `*_sep` or orbital-element columns).
 `name` is the system label; `row` is a summary `NamedTuple` carrying `gaia_id`,
 `hip`, `parallax`, and the per-companion log-Bayes-factors `ln_bf`, `ln_bf_c`,
-`ln_bf_d`.
+`ln_bf_d`. An optional `row.ipd_frac_multi_peak` (Gaia DR3 percent of IPD windows
+with more than one peak) adds a faint top-left "mp<pct>" hint when non-zero.
 
 `weights` (length `nrow(samples)`, or `nothing`) re-weights the draws by the
 joint population posterior — each draw is drawn with opacity ∝ weight (robustly
@@ -153,7 +220,12 @@ function gallery_panel!(gpos, samples::DataFrame, name, row;
         xaxis_mode::Symbol = :sep_au,
         nea = nothing, wds = nothing, orb6 = nothing, sb9 = nothing,
         max_points::Int = 4096, base_alpha::Real = 1.0,
-        weight_quantile::Real = 0.9, rng::AbstractRNG = Xoshiro(1))
+        weight_quantile::Real = 0.9, rng::AbstractRNG = Xoshiro(1),
+        weight_encoding::Symbol = :alpha,
+        area_ref_quantile::Real = 0.5, area_min_ms::Real = 0.0,
+        area_max_ms_factor::Real = 4.0,
+        kde_bandwidth::Real = 0.8, contour_sigmas = (1, 2, 3),
+        contour_scatter_outliers::Bool = true)
 
     weights === nothing || length(weights) == nrow(samples) || throw(DimensionMismatch(
         "weights length $(length(weights)) ≠ nrow(samples) $(nrow(samples))"))
@@ -176,12 +248,23 @@ function gallery_panel!(gpos, samples::DataFrame, name, row;
         wwork === nothing || (wwork = wwork[sub])
     end
 
-    # Opacity scaling: max-weight draw is fully opaque; normalise by a high
-    # quantile so a few very-high-multiplicity draws don't wash everything out.
+    # Opacity scaling (:alpha encoding): max-weight draw is fully opaque;
+    # normalise by a high quantile so a few very-high-multiplicity draws don't
+    # wash everything out.
+    #
+    # Area scaling (:area encoding): instead of fading low-weight draws, encode
+    # weight as marker AREA (markersize ∝ √weight), keeping every drawn point
+    # fully opaque. The reference weight `area_ref_quantile` (a CENTRAL quantile,
+    # default the median) maps to the standalone `base_ms`, so a system the
+    # population leaves untouched renders at the same visual density as its
+    # standalone panel — only genuinely down-weighted draws shrink away, rather
+    # than the whole cloud fading. `wsizeref` is that reference weight.
     wnorm = 1.0
+    wsizeref = 1.0
     if wwork !== nothing
         nz = filter(>(0), wwork)
-        wnorm = isempty(nz) ? 1.0 : max(quantile(nz, weight_quantile), 1e-12)
+        wnorm    = isempty(nz) ? 1.0 : max(quantile(nz, weight_quantile),  1e-12)
+        wsizeref = isempty(nz) ? 1.0 : max(quantile(nz, area_ref_quantile), 1e-12)
     end
 
     ln_bf    = _getfield_or(row, :ln_bf, NaN)
@@ -285,22 +368,93 @@ function gallery_panel!(gpos, samples::DataFrame, name, row;
         base_c = COMPANION_COLORS[pl_idx]
 
         for np in sort(unique(n_pl_vals))
+            weight_encoding === :contour && break   # density drawn in a later pass
             np_mask = n_pl_vals .== np
             any(np_mask) || continue
-            cols = if wpl === nothing
-                _MK.RGBAf(base_c.r, base_c.g, base_c.b, base_alpha)
-            else
-                [_MK.RGBAf(base_c.r, base_c.g, base_c.b,
-                           base_alpha * clamp(w / wnorm, 0.0, 1.0)) for w in wpl[np_mask]]
+            if wpl === nothing
+                cols = _MK.RGBAf(base_c.r, base_c.g, base_c.b, base_alpha)
+                mss  = base_ms
+            elseif weight_encoding === :area
+                # Weight → marker AREA: markersize ∝ √(w / wsizeref), full
+                # opacity. The √ makes drawn AREA (not radius) linear in weight,
+                # so a draw at the reference weight matches `base_ms`. Clamp so a
+                # few very-high-multiplicity draws can't balloon into blobs and
+                # so near-zero weights collapse to `area_min_ms` (default 0 ⇒
+                # they vanish, the area analogue of the alpha→0 fade-out).
+                ms_cap = base_ms * area_max_ms_factor
+                cols = _MK.RGBAf(base_c.r, base_c.g, base_c.b, base_alpha)
+                mss  = [clamp(base_ms * sqrt(w / wsizeref), area_min_ms, ms_cap)
+                        for w in wpl[np_mask]]
+            else  # :alpha (legacy) — fade opacity by weight, constant size.
+                cols = [_MK.RGBAf(base_c.r, base_c.g, base_c.b,
+                                  base_alpha * clamp(w / wnorm, 0.0, 1.0)) for w in wpl[np_mask]]
+                mss  = base_ms
             end
             scatter!(a, xvals[np_mask], masses[np_mask];
-                color = cols, markersize = base_ms, rasterize = 4,
+                color = cols, markersize = mss, rasterize = 4,
                 marker = get(NCOMP_MARKERS, np, :star5))
         end
 
         per_planet_xvals[pl]  = collect(Float64, xvals)
         per_planet_masses[pl] = masses
         per_planet_w[pl]      = wpl
+    end
+
+    # ── Posterior density contours (:contour weight encoding) ──
+    # Instead of one marker per draw, draw filled KDE-density contours per
+    # companion, PairPlots.jl-style: a weighted Gaussian KDE (in log space) gives
+    # the smooth, correctly-tilted density; bands are placed at enclosed-mass
+    # levels (the 2-D 1/2/3-σ credible regions by default) so a confident
+    # detection stays a saturated island rather than a faded cloud, and the
+    # population update reads as the island moving/shrinking. Draws that fall
+    # OUTSIDE the outermost band (long thin tails, outliers) are scattered back in
+    # as faint points so they aren't silently dropped — the hybrid contour+scatter
+    # used in PairPlots. The standalone panel (`weights = nothing`) gets the same
+    # treatment and so is directly comparable.
+    #
+    # Only DETECTED companion slots (per-companion Bayes factor > 1) are
+    # contoured: a non-detected slot's draws smear across the whole prior, and a
+    # filled contour would turn that diffuse density into a panel-swamping blob.
+    # Those upper-limit slots are instead represented by the black dashed
+    # upper-envelope below (built from exactly the BF ≤ 1 companions), so the two
+    # are complementary rather than fighting for the same ink.
+    if weight_encoding === :contour
+        contour_lnbf = Dict("b" => ln_bf,
+                            "c" => _getfield_or(row, :ln_bf_c, -Inf),
+                            "d" => _getfield_or(row, :ln_bf_d, -Inf))
+        for (pl_idx, pl) in enumerate(planet_labels)
+            haskey(per_planet_xvals, pl) || continue
+            get(contour_lnbf, pl, -Inf) > 0 || continue   # BF > 1 ⇔ ln BF > 0
+            xs = per_planet_xvals[pl]; ys = per_planet_masses[pl]; wpl = per_planet_w[pl]
+            length(xs) >= _ENVELOPE_MIN_BIN_COUNT || continue
+            logx = log10.(max.(xs, 1e-12)); logy = log2.(max.(ys, 1e-12))
+            xc, yc, z, ik = _kde_density(logx, logy, wpl;
+                                         bw_factor = kde_bandwidth, xbase = 10.0, ybase = 2.0)
+            levels = _sigma_levels(z, contour_sigmas)
+            isempty(levels) && continue
+            base_c = COMPANION_COLORS[pl_idx]
+            cmap = [_MK.RGBAf(base_c.r, base_c.g, base_c.b, al)
+                    for al in range(0.15, 0.80; length = length(levels))]
+            contourf!(a, xc, yc, z; levels, colormap = cmap,
+                      extendlow = :transparent, extendhigh = (base_c, 0.85))
+            contour!(a, xc, yc, z; levels, color = (base_c, 0.85), linewidth = 0.6)
+
+            # Hybrid: scatter the draws below the outermost band (the tails).
+            if contour_scatter_outliers
+                lo = first(levels)
+                out = [KernelDensity.pdf(ik, logx[i], logy[i]) < lo for i in eachindex(logx)]
+                if any(out)
+                    if wpl === nothing
+                        ocols = _MK.RGBAf(base_c.r, base_c.g, base_c.b, base_alpha)
+                    else
+                        ocols = [_MK.RGBAf(base_c.r, base_c.g, base_c.b,
+                                           base_alpha * clamp(w / wnorm, 0.0, 1.0)) for w in wpl[out]]
+                    end
+                    scatter!(a, xs[out], ys[out]; color = ocols, markersize = base_ms,
+                             rasterize = 4, marker = get(NCOMP_MARKERS, 1, :circle))
+                end
+            end
+        end
     end
 
     # Separation/period bins, shared by the upper-envelope and the side histograms.
@@ -489,6 +643,28 @@ function gallery_panel!(gpos, samples::DataFrame, name, row;
     host_edge, host_w = _dp_step(mass_bins, _whist(M_pri_mjup_vals, wwork, mass_bins))
     lines!(ra, host_w, host_edge; color = :black)
 
+    # ── Gaia DR3 IPD multi-peak fraction (very subtle hint when non-zero) ──
+    # `ipd_frac_multi_peak` (percent of IPD windows with >1 peak) is a quiet flag
+    # for a possibly unresolved/blended companion. When the summary `row` carries
+    # it and it is non-zero, drop a faint glyph + "mp<pct>" label in the
+    # top-left corner whose opacity grows with the value (clamped to a low,
+    # deliberately understated range) so it reads as metadata, not a data point.
+    # Drawn in axis-relative space so it ignores the log scales. `row`s without
+    # the field (or a zero/missing value) render exactly as before.
+    let ipd_mp = _getfield_or(row, :ipd_frac_multi_peak, missing)
+        if ipd_mp !== nothing && !ismissing(ipd_mp) && ipd_mp isa Real && ipd_mp > 0
+            # ~50% opaque at mp=5, fully opaque by mp=15: a ≳15% multi-peak
+            # fraction is effectively a certain second peak (it just varies by
+            # scan direction), so it should read at full strength.
+            al = clamp(0.25 + 0.05 * ipd_mp, 0.25, 1.0)
+            scatter!(a, [_MK.Point2f(0.045, 0.945)]; space = :relative,
+                     marker = :diamond, markersize = 6, color = (:grey15, al))
+            text!(a, _MK.Point2f(0.085, 0.945); space = :relative,
+                  text = @sprintf("mp%d", round(Int, ipd_mp)), align = (:left, :center),
+                  fontsize = 6, color = (:grey15, al))
+        end
+    end
+
     # ── Limits, linking, decorations ──
     ylims!(a, 1e-2, _YAXIS_MASS_MAX); xlims!(a, xlims_range...)
     xlims!(ta, xlims_range...); ylims!(ta, low = 0)
@@ -557,7 +733,12 @@ function gallery_page(entries::AbstractVector;
         date = "2015-06-01", xaxis_mode::Symbol = :sep_au,
         nea = nothing, wds = nothing, orb6 = nothing, sb9 = nothing,
         page_size::Tuple = (850, 1100), ncol::Int = 5, legend::Bool = true,
-        rng::AbstractRNG = Xoshiro(1), max_points::Int = 4096, base_alpha::Real = 1.0)
+        rng::AbstractRNG = Xoshiro(1), max_points::Int = 4096, base_alpha::Real = 1.0,
+        weight_encoding::Symbol = :alpha,
+        area_ref_quantile::Real = 0.5, area_min_ms::Real = 0.0,
+        area_max_ms_factor::Real = 4.0,
+        kde_bandwidth::Real = 0.8, contour_sigmas = (1, 2, 3),
+        contour_scatter_outliers::Bool = true)
 
     fig = Figure(size = page_size)
     n = length(entries)
@@ -567,6 +748,8 @@ function gallery_page(entries::AbstractVector;
         gallery_panel!(GridLayout(fig[row_idx, col_idx]), e.samples, e.name, e.row;
             weights = get(e, :weights, nothing),
             date, xaxis_mode, nea, wds, orb6, sb9, max_points, base_alpha, rng,
+            weight_encoding, area_ref_quantile, area_min_ms, area_max_ms_factor,
+            kde_bandwidth, contour_sigmas, contour_scatter_outliers,
             hidex = row_idx < nrows_this, hidey = col_idx > 1)
         col_idx += 1
         if col_idx > ncol; col_idx = 1; row_idx += 1; end

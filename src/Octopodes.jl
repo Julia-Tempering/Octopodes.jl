@@ -10,6 +10,9 @@ using   Distributions,
 import LogExpFunctions: logaddexp
 import ForwardDiff
 import JLD2
+import KernelDensity
+import MCMCDiagnosticTools
+import StatsBase: Weights
 
 # Gallery (per-system mass–separation dotplot pages). These pull in the heavier
 # domain dependencies (DataFrames for the per-star posterior table, PlanetOrbits
