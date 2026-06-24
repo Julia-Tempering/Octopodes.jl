@@ -1,24 +1,14 @@
 ## ──────────────────────────────────────────────────────────────────────────
 ## Per-system mass–separation "gallery" pages
 ##
-## A faithful, weight-aware port of the multi-companion dotplot panels used in
-## the Hipparcos/Gaia companion-demographics papers. Each panel shows one
-## system's posterior over up to three companions (b, c, d) in the physical
-## mass–separation plane, with marginal histograms, an upper-envelope line, and
-## optional overlays of known-companion catalogs (NASA Exoplanet Archive,
-## WDS/ORB6 visual orbits, SB9 spectroscopic binaries).
-##
 ## The point of *this* file (vs. the units-agnostic engine in `dotplot.jl`) is
 ## the joint-population re-weighting: pass a per-draw `weights` vector — e.g. the
 ## acceptance counts from [`joint_reconstruction_weights`](@ref) — and each draw
-## is drawn with opacity ∝ its weight, while the marginal histograms and the
+## is drawn with opacity or size ∝ its weight, while the marginal histograms and the
 ## upper-envelope use the weights too. The result is the system posterior re-
 ## expressed under the population posterior `p(n_s, x_s | y_{1:S})`. With
 ## `weights = nothing` the panel is identical to the standalone gallery.
 ##
-## Separation columns are read from `*_sep` / `*_projsep` when present (so an
-## enriched input needs no orbit solve) and otherwise reconstructed on the fly
-## from the per-draw orbital elements via PlanetOrbits.
 ## ──────────────────────────────────────────────────────────────────────────
 
 # CairoMakie re-exports most of Makie, but a few names (rich/subscript/Mixed/…)
@@ -402,7 +392,7 @@ function gallery_panel!(gpos, samples::DataFrame, name, row;
 
     # ── Posterior density contours (:contour weight encoding) ──
     # Instead of one marker per draw, draw filled KDE-density contours per
-    # companion, PairPlots.jl-style: a weighted Gaussian KDE (in log space) gives
+    # companion using the PairPlots.jl recipe: a weighted Gaussian KDE (in log space) gives
     # the smooth, correctly-tilted density; bands are placed at enclosed-mass
     # levels (the 2-D 1/2/3-σ credible regions by default) so a confident
     # detection stays a saturated island rather than a faded cloud, and the
