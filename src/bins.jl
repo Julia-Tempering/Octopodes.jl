@@ -198,7 +198,7 @@ All the intervals are viewed as closed on the left and open to the right,
 except the last one which is closed on both sides. 
 """
 function interval_index(r::StepRangeLen, value::Real)
-    if value == last(r) # last inteval we close on the right
+    if value ≈ last(r) # last interval we close on the right
         return length(r) - 1
     end
     result = Int(div(value - first(r), step(r), RoundDown)) + 1
