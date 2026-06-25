@@ -4,13 +4,14 @@ $SIGNATURES
 function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, processor = (processor_context -> nothing)) 
     proposals = binned.samples
     n_systems, n_iters = size(proposals)
-    states = copy(proposals[:, 1]) # iter 1: initialize with first system trace proposal
+    states = copy(@view(proposals[:, 1])) # iter 1: initialize with first system trace proposal
     max_n_comp = binned.max_n_companions
     n_bins = binned.binning.n_bins 
     tilde_psi = binned.tilde_psi
     
     psi_trace = zeros(max_n_comp + 1, n_iters - 1) 
     pi_trace = zeros(n_bins, n_iters - 1)
+    states_trace = copy(binned.samples)
     accept_prs = zeros(n_systems)
 
     for iter in 2:n_iters
@@ -24,14 +25,15 @@ function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, processor = (process
 
         # collect samples
         psi_trace[:, iter - 1] = psi 
-        pi_trace[:, iter - 1] = pi
+        pi_trace[:, iter - 1] = pi 
+        states_trace[:, iter] = states
 
-        processor_context = (; iter, psi, pi, states, total_companion_counts, bin_membership_counts)
+        processor_context = (; iter, n_iters, psi, pi, states, total_companion_counts, bin_membership_counts)
         processor(processor_context)
     end
     accept_prs ./= (n_iters - 1)
 
-    return (; psi_trace, pi_trace, accept_prs)
+    return (; psi_trace, pi_trace, states_trace, accept_prs, binning = binned.binning)
 end
 
 active_companions(s::BinnedSample) = 1:s.n_companions

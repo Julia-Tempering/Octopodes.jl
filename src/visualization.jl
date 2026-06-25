@@ -12,18 +12,78 @@ function numerical_posterior_plot(posterior::Vector, true_proportion = nothing)
     return fig
 end
 
+function joint_detection_prior_sensitivity_synth_plot()
+    psi_some_companion_truth = 0.8 
+    generated = Octopodes.generate_binary_indep_runs(;
+            psi_some_companion_truth, 
+            n_systems = 100000,
+            n_systems_iters = 10000,
+            mcmc_lazy_pr = 0.5)
 
+    # Only the curves corresponding to a no-companion are non-trivial
+    s = findfirst(iszero, generated.x_truth)
+
+    fig, ax1, ax2 = _joint_detection_sensitivity_plot()
+
+    bayes_optimal = Octopodes.synthetic_local_posterior(psi_some_companion_truth, false)
+    hlines!(ax1, [bayes_optimal[2]], linestyle = :dash, color = :gray, linewidth = 1.5)
+
+    indices = collect(1:n_systems)
+    indices[1], indices[s] = indices[s], indices[1]
+    series = joint_detection_sensitivity_by_n_systems(generated.runs, indices) 
+    len = length(series.posteriors) 
+    xs = 2 .^ (1:len)
+    lines!(ax1, xs, series.posteriors)
+    lines!(ax2, xs, abs.(series.derivatives))
+    return fig
+end
+
+function joint_detection_prior_sensitivity_real_plot(real_data::BinnedIndepRuns)
+    fig, ax1, ax2 = _joint_detection_sensitivity_plot()
+    rng = Xoshiro(42)
+    for _ in 1:100
+        p = randperm(rng, length(real_data.star_names))
+        series = joint_detection_sensitivity_by_n_systems(real_data, p) 
+        len = length(series.posteriors) 
+        xs = 2 .^ (1:len)
+        lines!(ax1, xs, series.posteriors)
+        lines!(ax2, xs, abs.(series.derivatives))
+    end
+    return fig
+end
+
+function _joint_detection_sensitivity_plot() 
+    fig = Figure(size = (600, 450))
+    ax1 = Axis(fig[1, 1], xscale = log10,                 ylabel = L"P(n_1 > 0|y_{1:S})")
+    ax2 = Axis(fig[2, 1], xscale = log10, yscale = log10, ylabel = L"|\partial_\mu P_\mu(n_1 > 0|y_{1:S})|", xlabel = L"S")
+    hidexdecorations!(ax1, grid = false, ticks = false)
+    return fig, ax1, ax2
+end
 
 
 ## Reproducing the paper's figures
 
-plots_foler() = mkpath("results/Planet-Demographics/plots")
+function all_figures(jld2_file::String)
+    real_data = IndepRuns(JLD2.load(jld2_file))
+    # TODO: save jld2_file + commit + date
+    validation_and_interpretation_figure(real_data) 
+    full_run(real_data)
+end
 
-function validation_and_interpretation_figure(real_data) 
-    output_folder = plots_foler()
+plots_folder() = mkpath("results/Planet-Demographics/plots")
+
+function prior_sensitivity_figure()
+    output_folder = plots_folder()
+
+    synth_plot = joint_detection_prior_sensitivity_synth_plot() 
+    save("$output_folder/prior_sensitivity_figure_synth.png", synth_plot)
+end
+
+function validation_and_interpretation_figure(real_data::BinnedIndepRuns) 
+    output_folder = plots_folder()
 
     # real data for comparison and setting number of systems, stars
-    real_binarized = binarize(bin(Binning(real_data, n_log_P_yr_intervals = 1, n_log_q_intervals = 1), real_data))
+    real_binarized = binarize(real_data)
     real_local_post = standardized_local_posteriors(real_binarized)
     local_fig, local_ax, _ = lines(real_local_post, label = "Real data")
     n_systems, n_systems_iters = size(real_binarized.samples)
@@ -63,15 +123,6 @@ function posterior_recovery_plot(generated, eps = default_eps)
     return numerical_posterior_plot(posterior, true_proportion)
 end
 
-
-function all_figures(jld2_file::String)
-    real_data = IndepRuns(JLD2.load(jld2_file))
-    # TODO: save jld2_file + commit + date
-    validation_and_interpretation_figure(real_data) 
-    full_run(real_data)
-end
-
-
 function full_run(real_data)
     output_folder = plots_foler()
 
@@ -89,91 +140,7 @@ end
 ## Population (joint-π) posterior: summary + heatmap
 ## ──────────────────────────────────────────────────────────────────────────
 
-"""
-$(TYPEDEF)
 
-Posterior summary of the joint population model produced by [`run_imh`](@ref),
-reduced to the quantities needed to describe and plot companion demographics.
-
-Construct one with [`population_posterior`](@ref). The companion-rate density is
-``\\lambda_x = \\mathbb{E}[n]\\,\\pi_x`` — the expected number of companions per
-star in bin ``x`` — under the single shared bin distribution ``\\pi`` of the
-joint model. Multiply by 100 for the conventional "companions per 100 stars per
-bin" units.
-
-$(FIELDS)
-"""
-struct PopulationPosterior{B <: Binning}
-    """ The [`Binning`](@ref) the posterior is defined on (carries the grid edges). """
-    binning::B
-    """ Companion-count distribution ``\\psi``. Dims: `(max_n_companions + 1) × n_keep`. """
-    psi::Matrix{Float64}
-    """ Shared per-bin distribution ``\\pi`` (flattened). Dims: `n_bins × n_keep`. """
-    pi::Matrix{Float64}
-    """ Per-bin companion-rate density ``\\lambda = \\mathbb{E}[n]\\,\\pi``. Dims: `n_keep × n_log_P × n_log_q`. """
-    lambda::Array{Float64, 3}
-    """ Tail probabilities ``P(n \\ge c)`` for `c = 1 … max_n_companions`. Dims: `max_n_companions × n_keep`. """
-    P_geq::Matrix{Float64}
-    """ Expected companion count ``\\mathbb{E}[n]`` per retained draw. Length `n_keep`. """
-    E_n::Vector{Float64}
-    """ Number of post-warmup IMH iterations retained. """
-    n_keep::Int
-    """ Fraction of the trace discarded as warmup. """
-    warmup_frac::Float64
-end
-
-Base.show(io::IO, p::PopulationPosterior) = print(io,
-    "PopulationPosterior(n_bins=$(p.binning.n_bins), ",
-    "max_n_companions=$(size(p.psi, 1) - 1), n_keep=$(p.n_keep))")
-
-"""
-$(SIGNATURES)
-
-Summarize the raw output of [`run_imh`](@ref) into a [`PopulationPosterior`](@ref).
-
-`result` is the named tuple returned by `run_imh` (with fields `psi_trace` and
-`pi_trace`); `binning` is the [`Binning`](@ref) used to produce the binned runs.
-The leading `warmup_frac` of each trace is discarded, then the per-draw companion
-rate density ``\\lambda = \\mathbb{E}[n]\\,\\pi``, tail probabilities
-``P(n \\ge c)`` and expected count ``\\mathbb{E}[n]`` are computed.
-
-This is the standard reduction every downstream demographics plot needs, so it
-lives here rather than in user scripts. See [`population_posterior_plot`](@ref).
-"""
-function population_posterior(result, binning::Binning; warmup_frac::Real = 0.2)
-    0 ≤ warmup_frac < 1 || throw(ArgumentError("warmup_frac must be in [0, 1), got $warmup_frac"))
-    psi_trace = result.psi_trace
-    pi_trace  = result.pi_trace
-
-    n_iters = size(psi_trace, 2)
-    warmup  = max(1, floor(Int, warmup_frac * n_iters))
-    keep    = (warmup + 1):n_iters
-    psi     = psi_trace[:, keep]                # (max_n_comp + 1) × n_keep
-    pi      = pi_trace[:, keep]                 # n_bins × n_keep
-    n_keep  = length(keep)
-
-    n_per, n_mass = binning.partition_sizes
-    max_n_comp = size(psi, 1) - 1
-
-    # P(n ≥ c) tail probabilities, c = 1 … max_n_comp.
-    P_geq = zeros(max_n_comp, n_keep)
-    for c in 1:max_n_comp, s in 1:n_keep
-        P_geq[c, s] = sum(@view psi[c+1:end, s])
-    end
-
-    # Expected companion count E[n] per retained draw.
-    n_vals = collect(0:max_n_comp)
-    E_n    = vec(n_vals' * psi)
-
-    # Joint per-bin rate density λ_x = E[n] · π_x (single shared π).
-    lambda = zeros(n_keep, n_per, n_mass)
-    for s in 1:n_keep
-        pi_mat = reshape(@view(pi[:, s]), n_per, n_mass)
-        lambda[s, :, :] .= E_n[s] .* pi_mat
-    end
-
-    return PopulationPosterior(binning, psi, pi, lambda, P_geq, E_n, n_keep, Float64(warmup_frac))
-end
 
 function _hdi(samples; credible_mass = 0.75)
     s = sort(samples)
@@ -258,8 +225,8 @@ function population_posterior_plot(post::PopulationPosterior; kwargs...)
     return population_posterior_plot(post.lambda, post.P_geq[1, :], post.binning; kwargs...)
 end
 
-function population_posterior_plot(result, binning::Binning; warmup_frac::Real = 0.2, kwargs...)
-    return population_posterior_plot(population_posterior(result, binning; warmup_frac); kwargs...)
+function population_posterior_plot(result; warmup_frac::Real = 0.2, kwargs...)
+    return population_posterior_plot(population_posterior(result; warmup_frac); kwargs...)
 end
 
 function population_posterior_plot(

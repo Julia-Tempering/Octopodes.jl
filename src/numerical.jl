@@ -1,4 +1,4 @@
-const default_eps = 0.001
+const default_eps = 0.0001
 
 """
 $(SIGNATURES)
@@ -14,6 +14,15 @@ numerical(binned::BinnedIndepRuns, eps = default_eps) =
         binned.tilde_psi, 
         Uniform(0.0, 1.0), 
         eps,
+        Float64
+    )
+
+numerical_joint_prediction(binned::BinnedIndepRuns, eps = default_eps) = 
+    numerical_joint_prediction(
+        local_companionship_posteriors(binned),
+        binned.tilde_psi,
+        Uniform(0.0, 1.0), 
+        eps, 
         Float64
     )
 
@@ -42,7 +51,7 @@ to_logBF(local_companionship_posterior, tilde_psi) =
 
 companion_probability(log_BF) = 1 / (1 + exp(-log_BF))
 
-function numerical(local_companionship_posteriors::Vector, tilde_psi::Vector, psi_prior::Distribution, eps::Real, ::Type{T}) where {T}
+function numerical(local_companionship_posteriors::AbstractVector, tilde_psi::AbstractVector, psi_prior::Distribution, eps::Real, ::Type{T}) where {T}
     @assert eps > 0 
     @assert all(0 .<= local_companionship_posteriors .<= 1) 
     @assert length(tilde_psi) == 2 && sum(tilde_psi) ≈ 1 
@@ -74,19 +83,28 @@ function standardized_local_posteriors(binned::BinnedIndepRuns)
 end
 
 build_grid(eps::Real) = eps:eps:(1.0-eps)
-build_grid(posterior::Vector) = build_grid(eps(posterior))
+build_grid(posterior::AbstractVector) = build_grid(eps(posterior))
 
 eps(n::Int) = 1.0 / (n + 1)
-eps(posterior::Vector) = eps(length(posterior))
+eps(posterior::AbstractVector) = eps(length(posterior))
 
-function numerical_mean(posterior::Vector{T}) where {T}
+numerical_mean(posterior) = numerical_mean(identity, posterior)
+function numerical_mean(test_function, posterior::AbstractVector{T}) where {T}
     psis = build_grid(posterior) 
     eps = Octopodes.eps(posterior)
     sum = zero(T)
     for posterior_discretization_index in eachindex(posterior)
-        sum += eps * psis[posterior_discretization_index] * posterior[posterior_discretization_index]
+        sum += eps * test_function(psis[posterior_discretization_index]) * posterior[posterior_discretization_index]
     end
     return sum
+end
+function numerical_joint_prediction(local_companionship_posteriors::AbstractVector, tilde_psi::AbstractVector, psi_prior::Distribution, eps::Real, ::Type{T}) where {T}
+    posterior = numerical(local_companionship_posteriors, tilde_psi, psi_prior, eps, T)
+    BFs = exp.(to_logBF.(local_companionship_posteriors, tilde_psi[2]))
+    return map(BFs) do BF 
+        test_fct(psi) = 1/(1 + (1 - psi) / psi / BF)
+        numerical_mean(test_fct, posterior)
+    end
 end
 
 
@@ -100,8 +118,9 @@ function binarize(binned::BinnedIndepRuns)
     pr_no_companion = binned.tilde_psi[1]
     tilde_psi = [pr_no_companion, 1.0 - pr_no_companion]
     function binarize(s::BinnedSample)
-        has_companion = s.n_companions > 0 ? 1 : 0
-        return BinnedSample{Tuple{Int64}}(has_companion, (has_companion,))
+        has_companion = UInt8(s.n_companions > 0 ? 1 : 0)
+        
+        return BinnedSample(has_companion, (has_companion,), s.indep_trace_index)
     end
     samples = map(binarize, binned.samples) 
     b = collapse(binned.binning)
@@ -128,8 +147,8 @@ function binarize(binned::BinnedIndepRuns, k::Int)
     tilde_psi = [pr_no_companion, 1.0 - pr_no_companion]
     
     function binarize(s::BinnedSample)
-        has_companion_in_given_bin = any(==(k), s.bin_memberships)
-        return BinnedSample{Tuple{Int64}}(has_companion_in_given_bin, (has_companion_in_given_bin,))
+        has_companion_in_given_bin = UInt8(any(==(k), s.bin_memberships))
+        return BinnedSample(has_companion_in_given_bin, (has_companion_in_given_bin,), s.indep_trace_index)
     end
     samples = map(binarize, binned.samples) 
 
@@ -141,10 +160,17 @@ end
 collapse(grid::StepRangeLen) = range(minimum(grid), maximum(grid), 2)
 collapse(b::Binning) = Binning(collapse(b.log_P_yr_grid), collapse(b.log_q_grid), (1, 1), 1)
 
+"""
+$SIGNATURES 
+
+
+"""
 function compare_numerical_imh(rng, binned; 
         # The KS test assumes iid samples, so we need thin+burn-in
         thinning = 5, 
         burn_fraction = 0.5) 
+    
+    @assert is_binary(binned)
     true_posterior = numerical(binned)
     num_cdf_xs, num_cdf_ys = discrete_pdf_to_cdf(true_posterior) 
 
@@ -171,11 +197,11 @@ function compare_numerical_imh_plot(compare_numerical_imh_results)
     (num_cdf_xs, num_cdf_ys) = compare_numerical_imh_results.true_cdf 
     (imh_cdf_xs, imh_cdf_ys) = compare_numerical_imh_results.samples_ecdf
 
-    fig, ax = Makie.lines(num_cdf_xs, num_cdf_ys; label = "True CDF")
+    fig, ax = Makie.lines(num_cdf_xs, num_cdf_ys; label = "Numerical CDF")
     Makie.lines!(ax, imh_cdf_xs, imh_cdf_ys; label = "IMH ECDF")
 
-    ax.xlabel = L"\psi_{>0}"
-    ax.ylabel = L"P(>\psi_{>0})"
+    ax.xlabel = L"\psi"
+    ax.ylabel = L"F_\psi(\cdot | y)"
     Makie.axislegend(ax, position = :lt)
 
     return fig

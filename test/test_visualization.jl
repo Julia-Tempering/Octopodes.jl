@@ -3,7 +3,7 @@
     result = run_imh(rng, binned)
     n_iters = size(result.psi_trace, 2)
 
-    post = population_posterior(result, b; warmup_frac = 0.2)
+    post = population_posterior(result; warmup_frac = 0.2)
 
     @test post.n_keep == n_iters - max(1, floor(Int, 0.2 * n_iters))
     @test size(post.psi)    == (max_n_companions(runs) + 1, post.n_keep)
@@ -16,17 +16,16 @@
     # λ = E[n]·π and π sums to one over bins ⇒ summing λ over bins recovers E[n].
     @test vec(sum(post.lambda, dims = (2, 3))) ≈ post.E_n
 
-    @test_throws ArgumentError population_posterior(result, b; warmup_frac = 1.0)
+    @test_throws ArgumentError population_posterior(result; warmup_frac = 1.0)
 end
 
 @testset "Population posterior plot" begin
     binned = bin(b, runs)
     result = run_imh(rng, binned)
-    post = population_posterior(result, b)
+    post = population_posterior(result)
 
-    # Edges are read from the binning, so none of these pass them by hand.
     @test population_posterior_plot(post) isa Figure
-    @test population_posterior_plot(result, b; warmup_frac = 0.3) isa Figure
+    @test population_posterior_plot(result; warmup_frac = 0.3) isa Figure
     @test population_posterior_plot(post.lambda, post.P_geq[1, :], b) isa Figure
 
     # Injection-truth overlay path.
@@ -41,15 +40,13 @@ end
 @testset "Poor-sensitivity masking" begin
     binned = bin(b, runs)
     result = run_imh(rng, binned)
-    post = population_posterior(result, b)
+    post = population_posterior(result)
 
     sens = relative_sensitivities(binned, 1e-3)
     @test length(sens) == b.n_bins
     thresh = sum(sens) / length(sens)   # mask roughly the most prior-driven half
 
     @test population_posterior_plot(post; sensitivity = sens,
-                                    sensitivity_threshold = thresh) isa Figure
-    @test population_posterior_plot(result, b; sensitivity = sens,
                                     sensitivity_threshold = thresh) isa Figure
 
     # threshold is mandatory when sensitivity is given
