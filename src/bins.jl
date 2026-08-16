@@ -18,6 +18,9 @@ $(SIGNATURES)
 
 Use the prior bounds from the independent MCMC runs and a requested number of intervals 
 in each axis to build a binning.
+
+For space efficiency, we enforce a limit of at most ``2^16 = 65536`` bins 
+(hardcoded at the moment but could be easily relaxed).
 """
 Binning(runs::IndepRuns; n_log_P_yr_intervals::Int, n_log_q_intervals::Int) =
     Binning(
@@ -29,6 +32,7 @@ build_grid(prior::Uniform, n_intervals) = range(prior.a, prior.b, n_intervals + 
 function Binning(log_P_yr_grid::StepRangeLen, log_q_grid::StepRangeLen)
     partition_sizes = n_intervals.((log_P_yr_grid, log_q_grid))
     n_bins = prod(partition_sizes)
+    @assert n_bins < 2^16 # We use UInt16 to store these indicators
     return Binning(log_P_yr_grid, log_q_grid, partition_sizes, n_bins)
 end
 
@@ -77,7 +81,7 @@ end
 
 function _bin(b::Binning, runs::IndepRuns, comp_indices::T, star_selector, shuffle_rng) where {T <: Tuple}
     n_systems = length(runs.traces)
-    samples = Array{BinnedSample{T}}(undef, n_samples(runs), n_systems)
+    samples = Array{BinnedSample{UInt8, tuple_type(comp_indices), UInt32}}(undef, n_samples(runs), n_systems)
     star_names = String[]
     for s in 1:n_systems 
         star_name = runs.traces[s].name
@@ -95,10 +99,11 @@ shuffle_if_needed(rng::AbstractRNG, indices) = shuffle(rng, indices)
 
 function _bin!(output, b::Binning, comp_indices::T, system_trace::NamedTuple, shuffle_rng) where {T <: Tuple}
     n_samples::Int = length(output)
+    @assert n_samples < 2^32 # We use UInt32 for trace index
     shuffled_indices = shuffle_if_needed(shuffle_rng, 1:n_samples)
-    log_P_yr::Matrix{Float64} = @view system_trace.log_P_yr[:, shuffled_indices]
-    log_q::Matrix{Float64} = @view system_trace.log_q[:, shuffled_indices]
-    n_planets::Vector{Int64} = @view system_trace.n_planets[shuffled_indices] 
+    log_P_yr = system_trace.log_P_yr[:, shuffled_indices]
+    log_q = system_trace.log_q[:, shuffled_indices]
+    n_planets = system_trace.n_planets[shuffled_indices] 
     
     @assert size(log_P_yr) == size(log_q)
     @assert size(log_P_yr)[2] == size(log_q)[2] == length(n_planets) == n_samples
@@ -107,31 +112,39 @@ function _bin!(output, b::Binning, comp_indices::T, system_trace::NamedTuple, sh
     max_n_companions = length(comp_indices)
     @assert size(log_P_yr)[1] == size(log_q)[1] == max_n_companions
 
-    buffer = zeros(Int, max_n_companions)
+    buffer = zeros(UInt16, max_n_companions)
     for iter in 1:n_samples
         n_companions = n_planets[iter]
         @assert 0 ≤ n_companions ≤ max_n_companions
         for c in 1:max_n_companions
             values = (log_P_yr[c, iter], log_q[c, iter]) 
-            buffer[c] = c ≤ n_companions ? bin(b, values) : 0
+            buffer[c] = UInt16(c ≤ n_companions ? bin(b, values) : 0)
         end
         bin_memberships = map(i -> buffer[i], comp_indices) 
-        output[iter] = BinnedSample(n_companions, bin_memberships)
+        output[iter] = BinnedSample(UInt8(n_companions), bin_memberships, UInt32(shuffled_indices[iter]))
     end
     return nothing 
 end
 
+tuple_type(comp_indices) = typeof(map(_ -> zero(UInt16), comp_indices))
+
 companion_indices(runs::IndepRuns) = companion_indices(runs.mv)
-companion_indices(::Val{N}) where {N} = tuple(1:N...)
+companion_indices(::Val{N}) where {N} = tuple((1:N)...)
 
 """
 $(FIELDS)
 """
-struct BinnedSample{T <: Tuple}
-    n_companions::Int
+struct BinnedSample{NC <: Integer, T <: Tuple, ITI <: Integer}
+    n_companions::NC
 
     """ Contains inactive ones (for type stability) - the inactive ones are set to zero. """
     bin_memberships::T 
+
+    """
+    Index of this sample in the original independent MCMC 
+    trace.
+    """
+    indep_trace_index::ITI
 end
 
 """
@@ -185,7 +198,7 @@ All the intervals are viewed as closed on the left and open to the right,
 except the last one which is closed on both sides. 
 """
 function interval_index(r::StepRangeLen, value::Real)
-    if value == last(r) # last inteval we close on the right
+    if value ≈ last(r) # last interval we close on the right
         return length(r) - 1
     end
     result = Int(div(value - first(r), step(r), RoundDown)) + 1

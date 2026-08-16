@@ -84,6 +84,12 @@ runs = IndepRuns(dict)
 
 This will perform several validation checks. 
 
+For space efficiency, we enforce 
+the following limits (hardcoded at the moment but could be easily relaxed):
+
+- Maximum number of companions should be smaller than ``2^8 = 256``
+- Number of iterations should be smaller than ``2^32 \approx 4B``.
+
 
 ## Binning 
 

@@ -19,12 +19,12 @@ typeof(result)
 # the population heatmap. The bin edges are read from `b`, so they never have to
 # be passed by hand:
 
-fig = population_posterior_plot(result, b; warmup_frac = 0.2)
+fig = population_posterior_plot(result; warmup_frac = 0.2)
 
 # If you also want the summarized quantities, build the `PopulationPosterior`
 # explicitly and plot that:
 
-post = population_posterior(result, b; warmup_frac = 0.2)
+post = population_posterior(result; warmup_frac = 0.2)
 post.lambda   # n_keep × n_log_P × n_log_q  (E[n]·π per bin)
 post.P_geq    # max_n_companions × n_keep   (P(n ≥ c))
 fig = population_posterior_plot(post)
