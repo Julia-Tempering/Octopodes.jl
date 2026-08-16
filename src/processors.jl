@@ -19,7 +19,7 @@ struct JointDetection
     end
 end
 (jt::JointDetection)(context) =
-    if context.iter / context.n_iters ≥ jt.burnin_fraction
+    if context.imh_iter / context.n_imh_iters ≥ jt.burnin_fraction
         states = context.states
         for system_index in eachindex(states) 
             n_comp = states[system_index].n_companions

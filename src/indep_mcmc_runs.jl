@@ -35,6 +35,7 @@ function IndepRuns(d::D) where {D <: Dict}
     NT = typeof(first(d["star_data"]))
     traces = Vector{NT}(d["star_data"])
     max = max_n_companions(traces)
+    @assert max < 2^8 # we use UInt 8 for BinnedSample.n_companions
     n_companions_prior = d["n_planets_prior"]
     @assert Distributions.support(n_companions_prior) == 0:max 
     name_to_index = Dict(traces[i].name => i for i in eachindex(traces))
@@ -49,6 +50,28 @@ function IndepRuns(d::D) where {D <: Dict}
     @assert allunique(stars(result))
     return result
 end
+
+"""
+$SIGNATURES
+
+Utility to reduce the memory consumption of large traces. 
+"""
+function convert_to_elt_type!(d::Dict, to_element_type::Type{T} = Float32) where {T <: Real} 
+    traces = d["star_data"]
+    for i in eachindex(traces)
+        traces[i] = convert_to_elt_type(to_element_type, traces[i])
+    end
+    return nothing
+end
+
+convert_to_elt_type(::Type{T}, tuple) where {T} = 
+    (; 
+        n_planets = UInt8.(tuple.n_planets), 
+        log_P_yr = convert.(T, tuple.log_P_yr), 
+        log_q = convert.(T, tuple.log_q), 
+        n_samples = tuple.n_samples, 
+        name = tuple.name
+    )
 
 function stars(runs::IndepRuns)
     name(t) = t.name

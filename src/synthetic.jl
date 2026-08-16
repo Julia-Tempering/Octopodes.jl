@@ -18,7 +18,7 @@ function generate_binary_indep_runs(;
     @assert n_systems_iters > 0 
 
     x_truth, data = _generate_binary_data(psi_some_companion_truth, n_systems, rng)
-    samples = Array{BinnedSample{Tuple{Int64}}}(undef, n_systems_iters, n_systems)
+    samples = Array{BinnedSample{Int, Tuple{Int64}, Int}}(undef, n_systems_iters, n_systems)
     
     for s in 1:n_systems
         _generate_binary_trace!(@view(samples[:, s]), data[s], tilde_psi_some_companion, mcmc_lazy_pr, rng, shuffle_rng)
@@ -59,7 +59,7 @@ function _generate_binary_trace!(output, datum::Bool, tilde_psi_some_companion, 
     some_comp_bern = Bernoulli(posterior[2])
 
     n_iterations = length(output)
-    samples_before_shuffling = Array{BinnedSample{Tuple{Int64}}}(undef, n_iterations)
+    samples_before_shuffling = Array{BinnedSample{Int, Tuple{Int}, Int}}(undef, n_iterations)
     for i in 1:n_iterations 
         self_transition = i == 1 ? false : rand(rng, Bernoulli(mcmc_lazy_pr)) 
         samples_before_shuffling[i] = 
@@ -67,7 +67,7 @@ function _generate_binary_trace!(output, datum::Bool, tilde_psi_some_companion, 
                 samples_before_shuffling[i-1] 
             else 
                 has_companion = rand(rng, some_comp_bern) ? 1 : 0
-                BinnedSample{Tuple{Int64}}(has_companion, (has_companion,), 0)
+                BinnedSample(has_companion, (has_companion,), 0)
             end
     end
     shuffled_indices = shuffle_if_needed(shuffle_rng, 1:n_iterations) 

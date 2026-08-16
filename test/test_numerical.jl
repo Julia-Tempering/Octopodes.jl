@@ -24,7 +24,7 @@ end
     numerical = Octopodes.numerical_joint_prediction(binned)
 
     processor_detection = Octopodes.JointDetection(n_systems, 2, 0.2) 
-    run_imh(Xoshiro(41), binned, processor_detection)
+    run_imh(Xoshiro(41), binned; processor = processor_detection)
     imh = [Octopodes.posterior_detection(processor_detection, 1, s) for s in 1:n_systems]
 
     @test maximum(abs.(numerical - imh)) < 0.01
