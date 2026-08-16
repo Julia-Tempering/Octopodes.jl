@@ -49,3 +49,4 @@ end
 max_repeats(indep_runs) = 
     maximum([max_repeats(indep_runs.traces[s].log_q[1,:]) for s in eachindex(indep_runs.traces)])
 
+wrapped_index(index, array_size) = ((index - 1) % array_size) + 1

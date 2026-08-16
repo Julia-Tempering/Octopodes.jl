@@ -1,39 +1,69 @@
 """
 $SIGNATURES
 """
-function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns, processor = (processor_context -> nothing)) 
-    proposals = binned.samples
-    n_systems, n_iters = size(proposals)
+function run_imh(rng::AbstractRNG, binned::BinnedIndepRuns; processor = (processor_context -> nothing), n_imh_iters = default_n_imh_iters(binned)) 
+    proposals = copy(binned.samples) # copy since we shuffle in place
+    n_systems, n_proposals = size(proposals)
+
+    # Note: currently assuming a shuffle is already done, this will change if we stop pre-shfuffleing
     states = copy(@view(proposals[:, 1])) # iter 1: initialize with first system trace proposal
+
     max_n_comp = binned.max_n_companions
     n_bins = binned.binning.n_bins 
     tilde_psi = binned.tilde_psi
     
-    psi_trace = zeros(max_n_comp + 1, n_iters - 1) 
-    pi_trace = zeros(n_bins, n_iters - 1)
-    states_trace = copy(binned.samples)
+    psi_trace = zeros(max_n_comp + 1, n_imh_iters) 
+    pi_trace = zeros(n_bins, n_imh_iters)
+    states_trace = similar(proposals, (n_systems, n_imh_iters)) 
     accept_prs = zeros(n_systems)
 
-    for iter in 2:n_iters
+    # Note: IMH iteration i uses proposal at iteration i+1 of the base sampler 
+    #       (because sample at base iteration 1 is for initialization)
+    proposal_index(imh_iter) = wrapped_index(imh_iter + 1, n_proposals)
+
+    for imh_iter in 1:n_imh_iters
+
+        if imh_iter > 1 &&  # Note: for now, it is already shuffled, so no need to redo, in the future may remove that 
+           proposal_index(imh_iter) == 1 # otherwise, need to shuffle when we are about to access the first column of proposals which would be a repeat if we didn't reshuffle
+            
+           reshuffle!(rng, proposals)
+        end
+
         # psi, pi | rest
         total_companion_counts, bin_membership_counts = gather_counts(states, max_n_comp, n_bins)
         psi = rand(rng, Dirichlet(1. .+ total_companion_counts))
         pi = rand(rng, Dirichlet(1. .+ bin_membership_counts)) 
 
         # planet counts, memberships | rest
-        sample_systems!(rng, states, accept_prs, @view(proposals[:, iter]), tilde_psi, psi, pi)
+        sample_systems!(rng, states, accept_prs, @view(proposals[:, wrapped_index(imh_iter + 1, n_proposals)]), tilde_psi, psi, pi)
 
         # collect samples
-        psi_trace[:, iter - 1] = psi 
-        pi_trace[:, iter - 1] = pi 
-        states_trace[:, iter] = states
+        psi_trace[:, imh_iter] = psi 
+        pi_trace[:, imh_iter] = pi 
+        states_trace[:, imh_iter] = states
 
-        processor_context = (; iter, n_iters, psi, pi, states, total_companion_counts, bin_membership_counts)
+        processor_context = (; imh_iter, n_imh_iters, psi, pi, states, total_companion_counts, bin_membership_counts)
         processor(processor_context)
+
     end
-    accept_prs ./= (n_iters - 1)
+    accept_prs ./= n_imh_iters
 
     return (; psi_trace, pi_trace, states_trace, accept_prs, binning = binned.binning)
+end
+
+function default_n_imh_iters(binned)
+    proposals = binned.samples
+    _, n_iters = size(proposals)
+    return n_iters - 1 # <- 1 pass on the base MCMC samples
+end
+
+function reshuffle!(rng, proposals)
+    n_systems, n_base_mcmc_iter = size(proposals)
+    # Note: after benchmarking it does not seem to be worth doing permutedims back and forth here (at least on M2 Pro)
+    for s in 1:n_systems 
+        shuffle!(rng, @view proposals[s, :])
+    end
+    return nothing
 end
 
 active_companions(s::BinnedSample) = 1:s.n_companions

@@ -4,6 +4,12 @@
     @inferred run_imh(rng, binned)
 end
 
+@testset "Reshuffling" begin
+    binned = bin(b, runs) 
+    result = run_imh(rng, binned, n_imh_iters = 3 * Octopodes.default_n_imh_iters(binned))
+    @test size(result.states_trace) == (2, 3 * Octopodes.default_n_imh_iters(binned))
+end
+
 results_prefix = "$(Octopodes.plots_folder())/numerical_imh_check"
 
 @testset "IMH and numerical agree on synthetic data" begin 
@@ -38,3 +44,4 @@ end
     Octopodes.save_latex_key_values("$(results_prefix)_real.tex", 
         ksPValueReal =  round(compare_numerical_imh_results.ks_p_value, digits=2))
 end
+
