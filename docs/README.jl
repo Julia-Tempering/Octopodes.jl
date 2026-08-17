@@ -36,9 +36,11 @@ fig = population_posterior_plot(post)
 sens = relative_sensitivities(binned, 1e-3)
 fig = population_posterior_plot(post; sensitivity = sens, sensitivity_threshold = 2.0)
 
-# ## How to generate/preview doc
+# ## How to preview/generate doc
 
-# Use `include("docs/preview.jl")` or `include("docs/make.jl")`.
+# Use `include("docs/preview.jl")` or `include("docs/make.jl")` (the latter regenerates both 
+# the `README.md` in the root of this repo, as well as the Documenter site). Note that the 
+# changes to `README.md` need to be manually pushed to github.
 
 
 # ## How to develop
@@ -46,5 +48,7 @@ fig = population_posterior_plot(post; sensitivity = sens, sensitivity_threshold 
 # `JET` and `Revise` need to be in sync, so use the following to start Julia:
 # `./dev.sh`
 # This will load the Test environment.
-# Run individual tests with e.g., `include("test/test_imh.jl)`.
+# Run individual tests by running first `include("test/setup.jl")` and then the test file 
+# you want to run, e.g., `include("test/test_imh.jl)`. To run all tests, use 
+# `include("test/runtests.jl)`.
 
