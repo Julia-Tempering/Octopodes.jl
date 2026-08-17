@@ -80,16 +80,16 @@ function bin(
 end
 
 function _bin(b::Binning, runs::IndepRuns, comp_indices::T, star_selector, shuffle_rng) where {T <: Tuple}
-    n_systems = length(runs.traces)
+    selected_systems = filter(star_selector, stars(runs))
+    n_systems = length(selected_systems)
     samples = Array{BinnedSample{UInt8, tuple_type(comp_indices), UInt32}}(undef, n_samples(runs), n_systems)
     star_names = String[]
-    for s in 1:n_systems 
-        star_name = runs.traces[s].name
-        if star_selector(star_name)
-            output = @view samples[:, s]
-            _bin!(output, b, comp_indices, runs.traces[s], shuffle_rng)
-            push!(star_names, star_name)
-        end
+    for s in eachindex(selected_systems)
+        star_name = selected_systems[s]
+        trace = trace_by_name(runs, star_name)
+        output = @view samples[:, s]
+        _bin!(output, b, comp_indices, trace, shuffle_rng)
+        push!(star_names, star_name)
     end
     return permutedims(samples), star_names
 end
