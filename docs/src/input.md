@@ -91,7 +91,20 @@ the following limits (hardcoded at the moment but could be easily relaxed):
 - Number of iterations should be smaller than ``2^32 \approx 4B``.
 
 
+## Converting to `Float32` 
+
+To decrease memory usage, it can be useful to convert 
+our `dict` from `Float64` to `Float32`. Use:
+
+```@example dict
+Octopodes.convert_to_elt_type!(dict, Float32)
+```
+
+
 ## Binning 
+
+*This section is optional, it documents internal 
+functionality that most users will not have to interact with.*
 
 To bin the data, proceed as follows. 
 
@@ -113,6 +126,9 @@ binned = bin(b, runs; star_selector = (x -> startswith(x, "HIP")))
 ```
 
 ## Binarizing
+
+*This section is optional, it documents internal 
+functionality that most users will not have to interact with.*
 
 To test our code, it is useful to consider the special 
 case where we collapse the number of companions into two cases, 

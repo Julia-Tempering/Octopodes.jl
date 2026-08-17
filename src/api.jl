@@ -33,6 +33,7 @@ function octopodes(ir::IndepRuns;
         posterior,
         joint_multiplicities = multiplicities,
         population_posterior_plot = posterior_plot,
-        system_plots
+        system_plots,
+        binned
     )
 end

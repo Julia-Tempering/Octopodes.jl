@@ -2,29 +2,32 @@
 
 # ## Getting started
 
-# Basic usage:
-
+# Basic usage 
+# (using here a tiny input file only for a quick software demo, 
+# that demo data is not suitable for scientific purpose, more 
+# information on input format is explained in the 
+# [documentation](https://julia-tempering.github.io/Octopodes.jl/dev/input)):
 
 using Octopodes, Random
 
 dict = Octopodes.Examples.small_dict()
-runs = IndepRuns(dict)
-b = Binning(runs, n_log_P_yr_intervals = 20, n_log_q_intervals = 20)
-binned = bin(b, runs)
-result = run_imh(Xoshiro(1), binned);
-typeof(result)
+input_data = IndepRuns(dict)
+
+octopodes_result = octopodes(input_data; n_log_P_yr_intervals = 20, n_log_q_intervals = 20)
+typeof(octopodes_result)
+
+# 
 
 # Summarize the joint-π posterior (warmup drop, per-bin rate density
 # ``\lambda = \mathbb{E}[n]\,\pi``, ``P(n \ge c)`` and ``\mathbb{E}[n]``) and plot
 # the population heatmap. The bin edges are read from `b`, so they never have to
 # be passed by hand:
 
-fig = population_posterior_plot(result; warmup_frac = 0.2)
+octopodes_result.population_posterior_plot
 
-# If you also want the summarized quantities, build the `PopulationPosterior`
-# explicitly and plot that:
+# If you also want the summarized quantities, use the `PopulationPosterior`:
 
-post = population_posterior(result; warmup_frac = 0.2)
+post =  octopodes_result.posterior
 post.lambda   # n_keep × n_log_P × n_log_q  (E[n]·π per bin)
 post.P_geq    # max_n_companions × n_keep   (P(n ≥ c))
 fig = population_posterior_plot(post)
@@ -33,8 +36,9 @@ fig = population_posterior_plot(post)
 # out using the per-bin relative prior-sensitivity. Masked bins are blanked on the
 # heatmap and dropped from the marginal sums:
 
-sens = relative_sensitivities(binned, 1e-3)
+sens = relative_sensitivities(octopodes_result.binned, 1e-3)
 fig = population_posterior_plot(post; sensitivity = sens, sensitivity_threshold = 2.0)
+
 
 # ## How to preview/generate doc
 
