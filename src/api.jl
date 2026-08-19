@@ -18,7 +18,7 @@ function octopodes(ir::IndepRuns;
     b = Binning(ir; n_log_P_yr_intervals, n_log_q_intervals)
     binned = bin(b, ir; star_selector)
     imh_args = isnothing(n_imh_iters) ? (;) : (; n_imh_iters)
-    imh_output = run_imh(imh_rng, binned; imh_args...)
+    imh_output = run_imh(imh_rng, binned; warmup_frac, imh_args...)
 
     posterior = population_posterior(imh_output; warmup_frac)
     multiplicities = joint_multiplicities(posterior)

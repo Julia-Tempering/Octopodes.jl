@@ -3,7 +3,7 @@
     binned = bin(b, runs)
 
     
-    results = run_imh(Xoshiro(41), binned)
+    results = run_imh(Xoshiro(41), binned; store_states_trace = true)
 
     @test_opt Octopodes.joint_reconstruction_weights(results.states_trace, Octopodes.n_samples(runs))
 
