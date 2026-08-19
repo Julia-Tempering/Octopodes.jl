@@ -29,7 +29,7 @@ end
 
     @test maximum(abs.(numerical - imh)) < 0.01
 
-    imh_result = run_imh(Xoshiro(41), binned)
+    imh_result = run_imh(Xoshiro(41), binned; store_states_trace = true)
     post = Octopodes.population_posterior(imh_result)
 
     hascompanions(s::Octopodes.BinnedSample) = s.n_companions > 0 ? 1.0 : 0.0

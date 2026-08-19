@@ -13,7 +13,7 @@ bin" units.
 
 $(FIELDS)
 """
-struct PopulationPosterior{B <: Binning, S <: BinnedSample}
+struct PopulationPosterior{B <: Binning, ST}
     """ The [`Binning`](@ref) the posterior is defined on (carries the grid edges). """
     binning::B
     """ Companion-count distribution ``\\psi``. Dims: `(max_n_companions + 1) × n_keep`. """
@@ -26,8 +26,17 @@ struct PopulationPosterior{B <: Binning, S <: BinnedSample}
     P_geq::Matrix{Float64}
     """ Expected companion count ``\\mathbb{E}[n]`` per retained draw. Length `n_keep`. """
     E_n::Vector{Float64}
-    """ Values ``(n_s, x_s)`` for all systems and retained IMH iterations. Dims: `n_systems × n_keep`. """
-    states_trace::Matrix{S}
+    """
+    Per-system acceptance counts over the retained IMH iterations, indexed by position in
+    the *original* (pre-shuffle) independent MCMC trace. Dims: `n_base_draws × n_systems`.
+    `nothing` when the warmup window requested here differs from the one `run_imh` counted
+    over (see [`population_posterior`](@ref)).
+    """
+    weights::Union{Nothing, Matrix{Float64}}
+    """ Per-system companion-count occupation counts over the retained IMH iterations. Dims: `(max_n_companions + 1) × n_systems`. `nothing` under the same condition as `weights`. """
+    multiplicity_counts::Union{Nothing, Matrix{Float64}}
+    """ Values ``(n_s, x_s)`` for all systems and retained IMH iterations, dims `n_systems × n_keep` — only when `run_imh` was called with `store_states_trace = true`, else `nothing`. """
+    states_trace::ST
     """ Number of post-warmup IMH iterations retained. """
     n_keep::Int
     """ Fraction of the trace discarded as warmup. """
@@ -54,7 +63,7 @@ rate density ``\\lambda = \\mathbb{E}[n]\\,\\pi``, tail probabilities
 This is the standard reduction every downstream demographics plot needs, so it
 lives here rather than in user scripts. See [`population_posterior_plot`](@ref).
 """
-function population_posterior(result; warmup_frac::Real = 0.2)
+function population_posterior(result; warmup_frac::Real = hasproperty(result, :warmup_frac) ? result.warmup_frac : 0.2)
     binning = result.binning
     0 ≤ warmup_frac < 1 || throw(ArgumentError("warmup_frac must be in [0, 1), got $warmup_frac"))
     psi_trace = result.psi_trace
@@ -67,7 +76,21 @@ function population_posterior(result; warmup_frac::Real = 0.2)
     pi      = pi_trace[:, keep]                 # n_bins × n_keep
     n_keep  = length(keep)
 
-    states_trace = result.states_trace[:, keep]
+    # Dense state trace is optional (see run_imh); when present, keep a view — copying it
+    # here used to be the second-largest allocation of the whole pipeline.
+    full_states_trace = hasproperty(result, :states_trace) ? result.states_trace : nothing
+    states_trace = full_states_trace === nothing ? nothing : @view full_states_trace[:, keep]
+
+    # The counts run_imh accumulated are valid only if its warmup window matches the one
+    # requested here; on mismatch fall back to the dense trace (consumers recompute from
+    # it), or leave the count-based summaries unavailable.
+    weights = nothing
+    multiplicity_counts = nothing
+    if hasproperty(result, :accept_counts) &&
+       warmup == max(1, floor(Int, result.warmup_frac * n_iters))
+        weights = Float64.(result.accept_counts)
+        multiplicity_counts = Float64.(result.multiplicity_counts)
+    end
 
     n_per, n_mass = binning.partition_sizes
     max_n_comp = size(psi, 1) - 1
@@ -89,7 +112,7 @@ function population_posterior(result; warmup_frac::Real = 0.2)
         lambda[s, :, :] .= E_n[s] .* pi_mat
     end
 
-    return PopulationPosterior(binning, psi, pi, lambda, P_geq, E_n, states_trace, n_keep, Float64(warmup_frac))
+    return PopulationPosterior(binning, psi, pi, lambda, P_geq, E_n, weights, multiplicity_counts, states_trace, n_keep, Float64(warmup_frac))
 end
 
 """
@@ -100,7 +123,13 @@ The `lambda` argument is a function that takes in a
 This function will return apply it to all samples, and 
 compute a mean for each system. 
 """
-joint_reconstructions(lambda::Function, pp::PopulationPosterior) = joint_reconstructions(lambda, pp.states_trace)
+function joint_reconstructions(lambda::Function, pp::PopulationPosterior)
+    pp.states_trace === nothing && error(
+        "joint_reconstructions of a custom statistic needs the dense state trace: " *
+        "call run_imh with store_states_trace = true. " *
+        "(joint_multiplicities and joint_reconstruction_weights do not need it.)")
+    return joint_reconstructions(lambda, pp.states_trace)
+end
 function joint_reconstructions(lambda::Function, states_trace::AbstractMatrix)
     broadcast_lambda(x) = lambda.(x)
     result = mean(broadcast_lambda, eachcol(states_trace))
@@ -116,8 +145,11 @@ Returns a `(max_n_companions + 1) x n_systems` matrix where entry
 ``n, s``` encodes ``p(n_s | y)``. 
 """
 function joint_multiplicities(pp::PopulationPosterior)
+    if pp.multiplicity_counts !== nothing
+        return pp.multiplicity_counts ./ pp.n_keep
+    end
     max_n = max_n_companions(pp)
-    return joint_reconstructions(pp) do bs::BinnedSample 
+    return joint_reconstructions(pp) do bs::BinnedSample
         one_hot(bs.n_companions + 1, max_n + 1)
     end
 end
@@ -158,7 +190,17 @@ stored as `Float64` even though the entries are integers
 to facilitate in place normalization and emphasize that the 
 fact the values are integers is in a sense an implementation detail. 
 """
-joint_reconstruction_weights(pp::PopulationPosterior, ir::IndepRuns) = joint_reconstruction_weights(pp.states_trace, n_samples(ir))
+function joint_reconstruction_weights(pp::PopulationPosterior, ir::IndepRuns)
+    if pp.weights !== nothing
+        @assert size(pp.weights, 1) == n_samples(ir)
+        return copy(pp.weights) # copy: callers are invited to normalize in place
+    end
+    pp.states_trace === nothing && error(
+        "weights unavailable: the warmup_frac passed to population_posterior " *
+        "($(pp.warmup_frac)) must match the one used in run_imh, or the dense trace " *
+        "must be stored with store_states_trace = true")
+    return joint_reconstruction_weights(pp.states_trace, n_samples(ir))
+end
 function joint_reconstruction_weights(states_trace::AbstractMatrix, indep_runs_length::Int) 
     transposed_states_trace = permutedims(states_trace) 
 
